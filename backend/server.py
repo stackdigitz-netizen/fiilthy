@@ -38,17 +38,28 @@ from core.routes import router as core_router
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection (optional - can run in demo mode without it)
+mongo_url = os.environ.get('MONGO_URL')
+db = None
+client = None
+
+if mongo_url:
+    try:
+        client = AsyncIOMotorClient(mongo_url)
+        db = client[os.environ.get('DB_NAME', 'ceo_db')]
+    except Exception as e:
+        print(f"⚠️  Warning: Could not connect to MongoDB: {e}")
+        print("🎯 Running in demo mode without persistent storage")
+else:
+    print("ℹ️  MONGO_URL not configured. Running in demo mode.")
+    print("📝 To enable persistence, set MONGO_URL environment variable.")
 
 # Initialize AI services
 opportunity_scout = OpportunityScout()
 book_writer = BookWriter()
 course_creator = CourseCreator()
 product_generator = ProductGenerator()
-micro_taskforce = MicroTaskforce(db)
+micro_taskforce = MicroTaskforce(db) if db else None
 revenue_maximizer = RevenueMaximizer()
 social_media_ai = SocialMediaAI()
 sales_launch_ai = SalesLaunchAI()
@@ -1055,18 +1066,23 @@ async def get_system_health():
             "status": "healthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "services": {
-                "database": "operational",
+                "database": "connected" if db else "unavailable (demo mode)",
                 "ai_teams": "operational",
                 "automation": "operational",
                 "marketplaces": "operational"
-            },
-            "stats": {
+            }
+        }
+        
+        # Only count documents if database is available
+        if db:
+            health["stats"] = {
                 "total_products": await db.products.count_documents({}),
                 "total_opportunities": await db.opportunities.count_documents({}),
                 "pending_tasks": await db.ai_tasks.count_documents({"status": "pending"}),
                 "marketplace_listings": await db.marketplace_listings.count_documents({})
             }
-        }
+        else:
+            health["stats"] = {"mode": "demo", "note": "No persistent storage"}
         
         return health
     except Exception as e:
@@ -1232,13 +1248,24 @@ async def generate_real_product(niche: str, product_type: str = "ebook"):
 async def health():
     """Health check endpoint for deployment monitoring"""
     try:
-        # Test MongoDB connection
-        await db.admin.command('ping')
-        return {
+        response = {
             "status": "healthy",
             "environment": os.environ.get('ENVIRONMENT', 'development'),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        
+        # Test MongoDB connection if available
+        if db:
+            try:
+                await db.admin.command('ping')
+                response["database"] = "connected"
+            except Exception as db_error:
+                response["database"] = "disconnected"
+                response["db_error"] = str(db_error)
+        else:
+            response["database"] = "not configured (demo mode)"
+        
+        return response
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return {
