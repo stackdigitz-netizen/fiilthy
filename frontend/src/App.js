@@ -24,6 +24,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [aiRunning, setAiRunning] = useState(false);
   const [aiMessage, setAiMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [revenueRecs, setRevenueRecs] = useState(null);
+  const [socialPosts, setSocialPosts] = useState([]);
+  const [affiliateProgram, setAffiliateProgram] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -138,6 +142,72 @@ const Dashboard = () => {
     }
   };
 
+  const optimizeRevenue = async () => {
+    setAiRunning(true);
+    setAiMessage('💰 Optimizing pricing and creating bundles...');
+    
+    try {
+      const response = await axios.post(`${API}/ai/optimize-revenue`);
+      setRevenueRecs(response.data.recommendations);
+      setAiMessage('✅ Revenue optimization complete!');
+      
+      setTimeout(() => {
+        setAiRunning(false);
+        setAiMessage('');
+        setActiveTab('marketing');
+      }, 2000);
+    } catch (error) {
+      console.error("Error optimizing revenue:", error);
+      setAiMessage('❌ Error optimizing revenue');
+      setAiRunning(false);
+    }
+  };
+
+  const generateAffiliateProgram = async () => {
+    setAiRunning(true);
+    setAiMessage('🤝 Creating affiliate program...');
+    
+    try {
+      const response = await axios.post(`${API}/ai/generate-affiliate-program`);
+      setAffiliateProgram(response.data.program);
+      setAiMessage('✅ Affiliate program created!');
+      
+      setTimeout(() => {
+        setAiRunning(false);
+        setAiMessage('');
+        setActiveTab('marketing');
+      }, 2000);
+    } catch (error) {
+      console.error("Error creating affiliate program:", error);
+      setAiMessage('❌ Error creating affiliate program');
+      setAiRunning(false);
+    }
+  };
+
+  const generateSocialPosts = async (productId) => {
+    setAiRunning(true);
+    setAiMessage('📱 Generating social media posts...');
+    
+    try {
+      const response = await axios.post(`${API}/ai/generate-social-posts`, {
+        product_id: productId,
+        num_posts: 5
+      });
+      setSocialPosts(response.data.posts);
+      setAiMessage(`✅ Generated ${response.data.posts_generated} social posts!`);
+      
+      setTimeout(() => {
+        setAiRunning(false);
+        setAiMessage('');
+        setActiveTab('marketing');
+      }, 2000);
+    } catch (error) {
+      console.error("Error generating social posts:", error);
+      setAiMessage('❌ Error generating social posts');
+      setAiRunning(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     const colors = {
       draft: 'bg-gray-500',
@@ -243,6 +313,34 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Navigation Tabs */}
+      <div className="mb-6 bg-white/10 backdrop-blur-lg rounded-xl p-2 border border-white/20">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 px-4 py-2 rounded-lg transition-all ${
+              activeTab === 'overview' 
+                ? 'bg-purple-600 text-white' 
+                : 'text-gray-300 hover:bg-white/5'
+            }`}
+            data-testid="tab-overview"
+          >
+            📊 Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('marketing')}
+            className={`flex-1 px-4 py-2 rounded-lg transition-all ${
+              activeTab === 'marketing' 
+                ? 'bg-purple-600 text-white' 
+                : 'text-gray-300 hover:bg-white/5'
+            }`}
+            data-testid="tab-marketing"
+          >
+            📈 Marketing & Revenue
+          </button>
+        </div>
+      </div>
+
       <div className="mb-6 bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20" data-testid="ai-control-panel">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
           <Sparkles size={24} className="text-purple-400" />
@@ -282,6 +380,39 @@ const Dashboard = () => {
             <Package size={20} />
             Generate Product
           </button>
+
+          {/* Revenue Optimizer */}
+          <button
+            onClick={optimizeRevenue}
+            disabled={aiRunning}
+            className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 px-6 py-4 rounded-lg transition-all flex items-center gap-3 justify-center font-semibold"
+            data-testid="optimize-revenue-btn"
+          >
+            <DollarSign size={20} />
+            Optimize Revenue
+          </button>
+
+          {/* Social Media Posts */}
+          <button
+            onClick={() => products.length > 0 && generateSocialPosts(products[0].id)}
+            disabled={aiRunning || products.length === 0}
+            className="bg-pink-600 hover:bg-pink-700 disabled:bg-gray-700 px-6 py-4 rounded-lg transition-all flex items-center gap-3 justify-center font-semibold"
+            data-testid="generate-social-btn"
+          >
+            <Sparkles size={20} />
+            Social Media Posts
+          </button>
+
+          {/* Affiliate Program */}
+          <button
+            onClick={generateAffiliateProgram}
+            disabled={aiRunning}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 px-6 py-4 rounded-lg transition-all flex items-center gap-3 justify-center font-semibold"
+            data-testid="affiliate-program-btn"
+          >
+            <CheckCircle size={20} />
+            Affiliate Program
+          </button>
         </div>
 
         <div className="mt-4 text-sm text-gray-400">
@@ -289,7 +420,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Main Content Grid */}
+      {/* Conditional Tab Content */}
+      {activeTab === 'overview' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Products & Opportunities */}
         <div className="lg:col-span-2 space-y-6">
@@ -512,6 +644,170 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Marketing & Revenue Tab */}
+      {activeTab === 'marketing' && (
+        <div className="space-y-6">
+          {/* Revenue Optimization */}
+          {revenueRecs && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <DollarSign size={24} className="text-green-400" />
+                Revenue Optimization Recommendations
+              </h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                {revenueRecs.pricing_recommendations?.slice(0, 6).map((rec, idx) => (
+                  <div key={idx} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <h3 className="font-semibold mb-2">{rec.product_title}</h3>
+                    <div className="flex items-center gap-4 mb-2">
+                      <span className="text-gray-400">${rec.current_price}</span>
+                      <span className="text-green-400">→ ${rec.recommended_price}</span>
+                      <span className="text-yellow-400 text-sm">{rec.estimated_revenue_increase}</span>
+                    </div>
+                    <p className="text-sm text-gray-400">{rec.reasoning}</p>
+                  </div>
+                ))}
+              </div>
+
+              <h3 className="text-xl font-bold mb-3">Recommended Bundles</h3>
+              <div className="space-y-3">
+                {revenueRecs.bundles?.slice(0, 3).map((bundle, idx) => (
+                  <div key={idx} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-semibold text-lg">{bundle.bundle_name}</h4>
+                      <span className="text-green-400 font-bold">${bundle.bundle_price}</span>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-2">{bundle.appeal}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {bundle.products.map((product, pidx) => (
+                        <span key={pidx} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                          {product}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-yellow-400 mt-2">Savings: {bundle.savings}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Social Media Posts */}
+          {socialPosts.length > 0 && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <Sparkles size={24} className="text-pink-400" />
+                Social Media Posts ({socialPosts.length})
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {socialPosts.map((post) => (
+                  <div key={post.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm">{post.platform}</span>
+                      <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">{post.status}</span>
+                    </div>
+                    <p className="text-sm text-gray-300 mb-2">{post.content}</p>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {post.hashtags?.map((tag, idx) => (
+                        <span key={idx} className="text-xs text-blue-400">{tag}</span>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {post.post_time} • {post.cta}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Affiliate Program */}
+          {affiliateProgram && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <CheckCircle size={24} className="text-indigo-400" />
+                Affiliate Program
+              </h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="text-sm text-gray-400">Active Affiliates</h3>
+                  <p className="text-3xl font-bold text-indigo-400">{affiliateProgram.active_affiliates}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="text-sm text-gray-400">Total Sales</h3>
+                  <p className="text-3xl font-bold text-green-400">{affiliateProgram.total_sales}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h3 className="text-sm text-gray-400">Total Revenue</h3>
+                  <p className="text-3xl font-bold text-yellow-400">${affiliateProgram.total_revenue?.toFixed(2)}</p>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold mb-3">Top Affiliates</h3>
+              <div className="space-y-2">
+                {affiliateProgram.top_affiliates?.map((affiliate, idx) => (
+                  <div key={affiliate.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold">{affiliate.name}</p>
+                      <p className="text-sm text-gray-400">{affiliate.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm">
+                        <span className="text-yellow-400 font-bold">{affiliate.tier}</span>
+                        {' • '}
+                        {affiliate.sales} sales
+                      </p>
+                      <p className="text-green-400 font-semibold">${affiliate.commission_earned.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4">
+                <h4 className="font-semibold mb-2">Commission Structure</h4>
+                <div className="flex gap-4">
+                  {affiliateProgram.commission_structure?.tiers?.map((tier, idx) => (
+                    <div key={idx} className="flex-1 text-center">
+                      <p className="text-sm text-gray-400">{tier.level}</p>
+                      <p className="font-bold text-lg">{tier.rate}%</p>
+                      <p className="text-xs text-gray-500">{tier.sales_required}+ sales</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!revenueRecs && !socialPosts.length && !affiliateProgram && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-12 border border-white/20 text-center">
+              <DollarSign size={64} className="mx-auto mb-4 opacity-50" />
+              <h2 className="text-2xl font-bold mb-2">Marketing & Revenue Optimization</h2>
+              <p className="text-gray-400 mb-6">
+                Use the AI Team Controls to generate marketing materials and optimize revenue
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={optimizeRevenue}
+                  className="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg"
+                >
+                  Optimize Revenue
+                </button>
+                <button
+                  onClick={generateAffiliateProgram}
+                  className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg"
+                >
+                  Create Affiliate Program
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
+import random
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -17,6 +18,10 @@ from ai_services.book_writer import BookWriter
 from ai_services.course_creator import CourseCreator
 from ai_services.product_generator import ProductGenerator
 from ai_services.micro_taskforce import MicroTaskforce
+from ai_services.revenue_maximizer import RevenueMaximizer
+from ai_services.social_media_ai import SocialMediaAI
+from ai_services.sales_launch_ai import SalesLaunchAI
+from ai_services.affiliate_manager import AffiliateManager
 
 
 ROOT_DIR = Path(__file__).parent
@@ -33,6 +38,10 @@ book_writer = BookWriter()
 course_creator = CourseCreator()
 product_generator = ProductGenerator()
 micro_taskforce = MicroTaskforce(db)
+revenue_maximizer = RevenueMaximizer()
+social_media_ai = SocialMediaAI()
+sales_launch_ai = SalesLaunchAI()
+affiliate_manager = AffiliateManager()
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -685,6 +694,169 @@ async def get_task_status(task_id: str):
         return task
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ PHASE 3: MARKETING & REVENUE OPTIMIZATION ============
+
+@api_router.post("/ai/optimize-revenue")
+async def optimize_revenue():
+    """Run Revenue Maximizer AI to optimize pricing and create bundles"""
+    try:
+        # Get all products
+        products = await db.products.find({}, {"_id": 0}).to_list(100)
+        
+        # Run revenue optimization
+        recommendations = await revenue_maximizer.optimize_pricing(products)
+        
+        # Store recommendations
+        rec_doc = recommendations.copy()
+        rec_doc["id"] = f"rec-{random.randint(1000, 9999)}"
+        rec_doc.pop('_id', None)
+        await db.revenue_recommendations.insert_one(rec_doc)
+        
+        return {
+            "success": True,
+            "recommendations": recommendations
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class GenerateSocialPostsRequest(BaseModel):
+    product_id: str
+    num_posts: int = 5
+
+@api_router.post("/ai/generate-social-posts")
+async def generate_social_posts(request: GenerateSocialPostsRequest):
+    """Generate social media posts for a product"""
+    try:
+        # Get product
+        product = await db.products.find_one({"id": request.product_id}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        
+        # Generate posts
+        posts = await social_media_ai.generate_posts(product, request.num_posts)
+        
+        # Store posts
+        for post in posts:
+            post_doc = post.copy()
+            post_doc.pop('_id', None)
+            await db.social_media_posts.insert_one(post_doc)
+        
+        return {
+            "success": True,
+            "posts_generated": len(posts),
+            "posts": posts
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CreateLaunchCampaignRequest(BaseModel):
+    product_id: str
+    target_audience: str = "general"
+
+@api_router.post("/ai/create-launch-campaign")
+async def create_launch_campaign(request: CreateLaunchCampaignRequest):
+    """Create complete launch campaign with funnel and emails"""
+    try:
+        # Get product
+        product = await db.products.find_one({"id": request.product_id}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        
+        # Create campaign
+        campaign = await sales_launch_ai.create_launch_campaign(product, request.target_audience)
+        
+        # Store campaign
+        campaign_doc = campaign.copy()
+        campaign_doc.pop('_id', None)
+        await db.launch_campaigns.insert_one(campaign_doc)
+        
+        return {
+            "success": True,
+            "campaign": campaign
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/ai/generate-affiliate-program")
+async def generate_affiliate_program():
+    """Generate affiliate program structure and recruitment materials"""
+    try:
+        # Get all products
+        products = await db.products.find({}, {"_id": 0}).to_list(100)
+        
+        # Generate program
+        program = await affiliate_manager.generate_affiliate_program(products)
+        
+        # Store program
+        program_doc = program.copy()
+        program_doc.pop('_id', None)
+        await db.affiliate_programs.insert_one(program_doc)
+        
+        return {
+            "success": True,
+            "program": program
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/marketing/revenue-recommendations")
+async def get_revenue_recommendations(limit: int = 1):
+    """Get latest revenue recommendations"""
+    try:
+        recommendations = await db.revenue_recommendations.find({}, {"_id": 0}).sort("generated_at", -1).limit(limit).to_list(limit)
+        return recommendations
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/marketing/social-posts")
+async def get_social_posts(product_id: Optional[str] = None, limit: int = 20):
+    """Get scheduled social media posts"""
+    try:
+        query = {}
+        if product_id:
+            query["product_id"] = product_id
+        
+        posts = await db.social_media_posts.find(query, {"_id": 0}).sort("scheduled_time", -1).limit(limit).to_list(limit)
+        return posts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/marketing/launch-campaigns")
+async def get_launch_campaigns(product_id: Optional[str] = None):
+    """Get launch campaigns"""
+    try:
+        query = {}
+        if product_id:
+            query["product_id"] = product_id
+        
+        campaigns = await db.launch_campaigns.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
+        return campaigns
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/marketing/affiliate-program")
+async def get_affiliate_program():
+    """Get latest affiliate program"""
+    try:
+        program = await db.affiliate_programs.find_one({}, {"_id": 0}, sort=[("created_at", -1)])
+        if not program:
+            return {"message": "No affiliate program found"}
+        return program
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
