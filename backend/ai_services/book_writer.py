@@ -84,7 +84,37 @@ Format as JSON:
             elif "```" in outline_text:
                 outline_text = outline_text.split("```")[1].split("```")[0].strip()
             
-            outline = json.loads(outline_text)
+            try:
+                outline = json.loads(outline_text)
+            except json.JSONDecodeError:
+                # Fallback: generate a default outline if parsing fails
+                outline = {
+                    "title": f"The Ultimate Guide to {niche.title()}",
+                    "subtitle": f"Master {niche} for {target_audience}",
+                    "chapters": [
+                        {"number": 1, "title": "Introduction", "description": f"Overview of {niche}"},
+                        {"number": 2, "title": "Getting Started", "description": "First steps and basics"},
+                        {"number": 3, "title": "Core Concepts", "description": "Key principles and ideas"},
+                        {"number": 4, "title": "Practical Application", "description": "Hands-on techniques"},
+                        {"number": 5, "title": "Advanced Strategies", "description": "Taking it to the next level"},
+                        {"number": 6, "title": "Conclusion", "description": "Summary and next steps"}
+                    ],
+                    "key_takeaways": [
+                        f"Understanding the fundamentals of {niche}",
+                        f"Practical strategies for {target_audience}",
+                        "Actionable steps you can implement today"
+                    ]
+                }
+            
+            # Ensure title exists
+            if 'title' not in outline or not outline['title']:
+                outline['title'] = f"The Ultimate Guide to {niche.title()}"
+            if 'subtitle' not in outline:
+                outline['subtitle'] = f"Master {niche} for {target_audience}"
+            if 'chapters' not in outline:
+                outline['chapters'] = [{"number": 1, "title": "Introduction", "description": f"Overview of {niche}"}]
+            if 'key_takeaways' not in outline:
+                outline['key_takeaways'] = [f"Understanding the fundamentals of {niche}"]
             
             # Step 2: Generate book content (abbreviated for MVP)
             content_prompt = f"""
