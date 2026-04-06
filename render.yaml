@@ -10,7 +10,7 @@ services:
       # Core
       - key: MONGO_URL
         scope: run
-        value: mongodb+srv://stackinsubzinc_db_user:db_Asshole12@cluster1.srgqzg.mongodb.net/ceo_ai?retryWrites=true&w=majority
+        value: mongodb+srv://stackinsubzinc_db_user:FiiLLTHY.ai@cluster1.srgqzg.mongodb.net/ceo_ai?retryWrites=true&w=majority
       - key: DB_NAME
         scope: run
         value: ceo_ai
