@@ -5,16 +5,38 @@ import os
 MONGO_URL = os.getenv("MONGO_URL")
 DB_NAME = os.getenv("DB_NAME", "ai_ceo")
 
-if not MONGO_URL:
-    print("ERROR: MONGO_URL environment variable is not set!")
-    print("Set it in Render dashboard: Environment > Add MONGO_URL")
-    raise ValueError("MONGO_URL environment variable is required")
+# Lazy initialization - don't connect at startup
+client = None
+db = None
 
-print(f"Connecting to MongoDB: {MONGO_URL[:50]}...")  # Print first 50 chars for debugging
+def get_db():
+    """Get database connection, creating it if needed"""
+    global client, db
+    
+    if db is not None:
+        return db
+    
+    if not MONGO_URL:
+        raise ValueError(f"ERROR: MONGO_URL not set! Current value: '{MONGO_URL}'")
+    
+    print(f"[DB] Connecting to MongoDB...")
+    print(f"[DB] URL starts with: {MONGO_URL[:60]}...")
+    
+    client = AsyncIOMotorClient(MONGO_URL)
+    db = client[DB_NAME]
+    print(f"[DB] Connected to database: {DB_NAME}")
+    return db
 
-client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+# These will be initialized on first use
+projects = None
+outputs = None
+logs = None
 
-projects = db.projects
-outputs = db.outputs
-logs = db.logs
+def init_collections():
+    """Initialize MongoDB collections"""
+    global projects, outputs, logs
+    database = get_db()
+    projects = database.projects
+    outputs = database.outputs
+    logs = database.logs
+    return projects, outputs, logs
