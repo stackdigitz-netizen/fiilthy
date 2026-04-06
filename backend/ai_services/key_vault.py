@@ -845,16 +845,26 @@ class SecureKeyVault:
         self._fernet = Fernet(self._encryption_key)
     
     def _get_or_create_key(self) -> bytes:
-        """Get or create encryption key"""
-        key_path = Path("/app/backend/.vault_key")
-        # Ensure parent directory exists
-        key_path.parent.mkdir(parents=True, exist_ok=True)
-        if key_path.exists():
-            return key_path.read_bytes()
-        else:
-            key = Fernet.generate_key()
-            key_path.write_bytes(key)
-            return key
+        """Get or create encryption key - use env var for production"""
+        import os
+        
+        # Try env variable first (for production)
+        env_key = os.getenv('VAULT_ENCRYPTION_KEY')
+        if env_key:
+            return env_key.encode() if isinstance(env_key, str) else env_key
+        
+        # Try file-based (for local/development)
+        key_path = Path("/tmp/.vault_key")
+        try:
+            if key_path.exists():
+                return key_path.read_bytes()
+            else:
+                key = Fernet.generate_key()
+                key_path.write_bytes(key)
+                return key
+        except (OSError, IOError, PermissionError):
+            # Fallback: generate key (stateless)
+            return Fernet.generate_key()
     
     def _encrypt(self, data: str) -> str:
         """Encrypt sensitive data"""

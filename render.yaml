@@ -64,6 +64,11 @@ services:
         scope: run
         value: ${STRIPE_SECRET_KEY}
       
+      # Security
+      - key: VAULT_ENCRYPTION_KEY
+        scope: run
+        value: ${VAULT_ENCRYPTION_KEY}
+      
       # CORS & Security
       - key: CORS_ORIGINS
         scope: run
