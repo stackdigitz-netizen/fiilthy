@@ -3190,7 +3190,7 @@ async def get_product_payment_stats(product_id: str):
 
 @api_router.get("/payments/all-stats")
 async def get_all_payment_stats():
-    \"\"\"Get overall payment statistics\"\"\"
+    """Get overall payment statistics"""
     try:
         if not db:
             return {
