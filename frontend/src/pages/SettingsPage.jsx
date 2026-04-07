@@ -1,33 +1,53 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Copy, Check, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, Copy, Check, Trash2, Plus, X } from 'lucide-react';
 import './Pages.css';
 
 const SettingsPage = () => {
   const [showKeys, setShowKeys] = useState({});
   const [copied, setCopied] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [formData, setFormData] = useState({
+    name: '',
+    key: '',
+    category: 'AI',
+    description: ''
+  });
 
-  const apiKeys = [
-    { name: 'OpenAI API Key', key: 'sk-***...***abc123', category: 'AI', status: 'connected' },
-    { name: 'Gumroad API Token', key: '***...***token', category: 'Platform', status: 'connected' },
-    { name: 'Shopify Access Token', key: '***...***shop', category: 'Platform', status: 'connected' },
-    { name: 'SendGrid API Key', key: '***...***mail', category: 'Email', status: 'connected' },
-    { name: 'TikTok Business Token', key: '***...***tiktok', category: 'Social', status: 'connected' },
-    { name: 'Instagram Access Token', key: '***...***insta', category: 'Social', status: 'connected' },
-    { name: 'Twitter API Key', key: '***...***twitter', category: 'Social', status: 'pending' },
-    { name: 'YouTube API Key', key: '***...***youtube', category: 'Social', status: 'connected' },
-    { name: 'LinkedIn Access Token', key: '***...***linkedin', category: 'Social', status: 'connected' },
-    { name: 'Google Analytics', key: '***...***analytics', category: 'Analytics', status: 'connected' },
-    { name: 'MongoDB Connection String', key: '***...***mongodb', category: 'Database', status: 'connected' }
-  ];
+  // Load keys from localStorage on mount and whenever storage changes
+  useEffect(() => {
+    const loadKeys = () => {
+      const savedKeys = localStorage.getItem('apiKeys');
+      if (savedKeys) {
+        try {
+          setApiKeys(JSON.parse(savedKeys));
+        } catch (e) {
+          console.error('Failed to load saved keys', e);
+        }
+      }
+    };
 
-  const categories = [
-    { name: 'AI', count: 1 },
-    { name: 'Platform', count: 2 },
-    { name: 'Email', count: 1 },
-    { name: 'Social', count: 5 },
-    { name: 'Analytics', count: 1 },
-    { name: 'Database', count: 1 }
-  ];
+    // Load on mount
+    loadKeys();
+
+    // Also listen for storage changes
+    window.addEventListener('storage', loadKeys);
+    
+    // Add a custom event listener for local storage changes (when changed in same window)
+    window.addEventListener('apiKeysUpdated', loadKeys);
+    
+    return () => {
+      window.removeEventListener('storage', loadKeys);
+      window.removeEventListener('apiKeysUpdated', loadKeys);
+    };
+  }, []);
+
+  // Save keys to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
+  }, [apiKeys]);
+
+  const categories = ['AI', 'Platform', 'Email', 'Social', 'Analytics', 'Database'];
 
   const copyToClipboard = (key, id) => {
     navigator.clipboard.writeText(key);
@@ -42,6 +62,40 @@ const SettingsPage = () => {
     }));
   };
 
+  const handleAddKey = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.key) {
+      alert('Please fill in key name and value');
+      return;
+    }
+    
+    const newKey = {
+      id: Date.now(),
+      ...formData,
+      status: 'connected',
+      createdAt: new Date().toISOString()
+    };
+    
+    setApiKeys([...apiKeys, newKey]);
+    setFormData({ name: '', key: '', category: 'AI', description: '' });
+    setShowAddForm(false);
+  };
+
+  const handleDeleteKey = (id) => {
+    if (confirm('Are you sure you want to delete this key?')) {
+      setApiKeys(apiKeys.filter(k => k.id !== id));
+    }
+  };
+
+  const maskKey = (key) => {
+    if (!key || key.length < 8) return '***';
+    return key.substring(0, 4) + '***...' + key.substring(key.length - 4);
+  };
+
+  const getCategoryCount = (category) => {
+    return apiKeys.filter(k => k.category === category).length;
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -52,7 +106,12 @@ const SettingsPage = () => {
       <div className="content-section">
         <div className="section-header">
           <h2>API Keys Overview</h2>
-          <button className="btn btn-primary">+ Add New Key</button>
+          <button 
+            className="btn btn-primary"
+            onClick={() => setShowAddForm(true)}
+          >
+            + Add New Key
+          </button>
         </div>
 
         <div className="keys-summary">
@@ -77,8 +136,8 @@ const SettingsPage = () => {
           <div className="category-list">
             {categories.map((cat, idx) => (
               <div key={idx} className="category-item">
-                <span>{cat.name}</span>
-                <span className="category-count">{cat.count}</span>
+                <span>{cat}</span>
+                <span className="category-count">{getCategoryCount(cat)}</span>
               </div>
             ))}
           </div>
@@ -99,81 +158,134 @@ const SettingsPage = () => {
 
       <div className="content-section">
         <h2>All API Keys</h2>
-        <div className="keys-table">
-          {apiKeys.map((key, idx) => (
-            <div key={idx} className="key-row">
-              <div className="key-info">
-                <div className="key-name">
-                  <h4>{key.name}</h4>
-                  <span className={`badge badge-${key.category.toLowerCase()}`}>{key.category}</span>
+        {apiKeys.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+            <p>No API keys added yet. Click "+ Add New Key" to get started.</p>
+          </div>
+        ) : (
+          <div className="keys-table">
+            {apiKeys.map((key, idx) => (
+              <div key={key.id} className="key-row">
+                <div className="key-info">
+                  <div className="key-name">
+                    <h4>{key.name}</h4>
+                    <span className={`badge badge-${key.category.toLowerCase()}`}>{key.category}</span>
+                  </div>
+                  <div className="key-display">
+                    <code>
+                      {showKeys[key.id] ? key.key : maskKey(key.key)}
+                    </code>
+                  </div>
+                  {key.description && (
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                      {key.description}
+                    </div>
+                  )}
                 </div>
-                <div className="key-display">
-                  <code>
-                    {showKeys[idx] ? key.key : key.key.replace(/./g, (char, pos) => pos < 4 || pos > key.key.length - 4 ? char : '*')}
-                  </code>
+
+                <div className="key-actions">
+                  <button
+                    className="key-btn"
+                    onClick={() => toggleKeyVisibility(key.id)}
+                    title={showKeys[key.id] ? 'Hide' : 'Show'}
+                  >
+                    {showKeys[key.id] ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                  <button
+                    className="key-btn"
+                    onClick={() => copyToClipboard(key.key, key.id)}
+                    title="Copy to clipboard"
+                  >
+                    {copied === key.id ? <Check size={18} className="text-success" /> : <Copy size={18} />}
+                  </button>
+                  <button
+                    className="key-btn"
+                    onClick={() => handleDeleteKey(key.id)}
+                    title="Delete key"
+                    style={{ color: '#ff6b6b' }}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <span className={`status-dot status-${key.status}`}></span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal for adding new key */}
+      {showAddForm && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Add New API Key</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowAddForm(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddKey} className="add-key-form">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Key Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Production OpenAI Key"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Category</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  >
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="key-actions">
-                <button
-                  className="key-btn"
-                  onClick={() => toggleKeyVisibility(idx)}
-                  title={showKeys[idx] ? 'Hide' : 'Show'}
-                >
-                  {showKeys[idx] ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-                <button
-                  className="key-btn"
-                  onClick={() => copyToClipboard(key.key, idx)}
-                  title="Copy to clipboard"
-                >
-                  {copied === idx ? <Check size={18} className="text-success" /> : <Copy size={18} />}
-                </button>
-                <span className={`status-dot status-${key.status}`}></span>
+              <div className="form-group">
+                <label>API Key / Token *</label>
+                <input
+                  type="password"
+                  placeholder="Paste your API key here"
+                  value={formData.key}
+                  onChange={(e) => setFormData({...formData, key: e.target.value})}
+                />
               </div>
-            </div>
-          ))}
+
+              <div className="form-group">
+                <label>Description (Optional)</label>
+                <textarea
+                  placeholder="What is this key used for?"
+                  rows="3"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                ></textarea>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary">Save Key</button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
-
-      <div className="content-section">
-        <h2>Add New API Key</h2>
-        <form className="add-key-form">
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Key Name</label>
-              <input type="text" placeholder="e.g., Production OpenAI Key" />
-            </div>
-            <div className="form-group">
-              <label>Category</label>
-              <select>
-                <option>Select category...</option>
-                <option>AI</option>
-                <option>Platform</option>
-                <option>Email</option>
-                <option>Social</option>
-                <option>Analytics</option>
-                <option>Database</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>API Key / Token</label>
-            <input type="password" placeholder="Paste your API key here" />
-          </div>
-
-          <div className="form-group">
-            <label>Description (Optional)</label>
-            <textarea placeholder="What is this key used for?" rows="3"></textarea>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">Save Key</button>
-            <button type="button" className="btn btn-secondary">Cancel</button>
-          </div>
-        </form>
-      </div>
+      )}
 
       <div className="content-section">
         <h2>System Configuration</h2>
