@@ -19,6 +19,7 @@ import anthropic
 from config.keys_manager import keys_manager
 
 # Import AI services
+from ai_services.multi_platform_manager import MultiPlatformManager, PlatformIntegration
 from ai_services.opportunity_scout import OpportunityScout
 from ai_services.book_writer import BookWriter
 from ai_services.course_creator import CourseCreator
@@ -83,6 +84,7 @@ product_generator = ProductGenerator()
 micro_taskforce = MicroTaskforce(db) if db is not None else None
 revenue_maximizer = RevenueMaximizer()
 social_media_ai = SocialMediaAI()
+multi_platform_manager = MultiPlatformManager()
 sales_launch_ai = SalesLaunchAI()
 affiliate_manager = AffiliateManager()
 marketplace_integrations = MarketplaceIntegrations()
@@ -1929,6 +1931,229 @@ async def get_social_campaigns(product_id: Optional[str] = None):
         
         campaigns = await db.social_campaigns.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
         return {"success": True, "campaigns": campaigns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ MULTI-PLATFORM SOCIAL MEDIA ENDPOINTS ============
+
+class GenerateMultiPlatformPostsRequest(BaseModel):
+    content: str = Field(..., description="Content to repurpose for all platforms")
+    product_id: Optional[str] = None
+    product_info: Optional[Dict[str, Any]] = None
+    num_variations: int = 5
+
+@api_router.post("/social/generate-multi-platform")
+async def generate_multi_platform_posts(request: GenerateMultiPlatformPostsRequest):
+    """Generate platform-specific posts from single content"""
+    try:
+        # Get product info if product_id provided
+        product_info = request.product_info or {}
+        if request.product_id and db:
+            product = await db.products.find_one({"id": request.product_id}, {"_id": 0})
+            if product:
+                product_info = {
+                    "title": product.get("title"),
+                    "description": product.get("description"),
+                    "price": product.get("price"),
+                    "keywords": product.get("keywords", [])
+                }
+        
+        # Generate posts for all platforms
+        posts_by_platform = await multi_platform_manager.generate_posts_for_all_platforms(
+            content=request.content,
+            product_info=product_info,
+            num_variations=request.num_variations
+        )
+        
+        return {
+            "success": True,
+            "posts_by_platform": posts_by_platform,
+            "total_posts": sum(len(posts) for posts in posts_by_platform.values())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ScheduleMultiPlatformRequest(BaseModel):
+    posts_by_platform: Dict[str, List[Dict[str, Any]]]
+    start_date: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    interval_hours: int = 24
+
+@api_router.post("/social/schedule-multi-platform")
+async def schedule_multi_platform_posts(request: ScheduleMultiPlatformRequest):
+    """Schedule posts across all platforms"""
+    try:
+        start_date = datetime.fromisoformat(request.start_date.replace('Z', '+00:00'))
+        
+        scheduled = await multi_platform_manager.schedule_posts(
+            posts_by_platform=request.posts_by_platform,
+            start_date=start_date,
+            interval_hours=request.interval_hours
+        )
+        
+        # Store in database if available
+        if db:
+            schedule_doc = {
+                "id": f"schedule-{uuid.uuid4().hex[:8]}",
+                "scheduled_posts": scheduled["schedule"],
+                "total_posts": scheduled["total_posts"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "status": "scheduled"
+            }
+            await db.social_schedules.insert_one(schedule_doc)
+        
+        return {
+            "success": True,
+            "scheduled": scheduled
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/social/analytics")
+async def get_social_analytics(platform: Optional[str] = None):
+    """Get social media analytics"""
+    try:
+        analytics = await multi_platform_manager.get_social_analytics(platform)
+        return {
+            "success": True,
+            "analytics": analytics
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/social/post-tiktok")
+async def post_to_tiktok(content: Dict[str, Any]):
+    """Post to TikTok (requires API key)"""
+    try:
+        api_key = keys_manager.get_key('tiktok_api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="TikTok API key not configured")
+        
+        result = await PlatformIntegration.post_to_tiktok(content, api_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/social/post-instagram")
+async def post_to_instagram(content: Dict[str, Any]):
+    """Post to Instagram (requires Graph API key)"""
+    try:
+        api_key = keys_manager.get_key('instagram_graph_api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Instagram Graph API key not configured")
+        
+        result = await PlatformIntegration.post_to_instagram(content, api_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/social/post-twitter")
+async def post_to_twitter(content: Dict[str, Any]):
+    """Post to Twitter/X (requires API v2 keys)"""
+    try:
+        api_key = keys_manager.get_key('twitter_api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Twitter API key not configured")
+        
+        result = await PlatformIntegration.post_to_twitter(content, api_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/social/post-linkedin")
+async def post_to_linkedin(content: Dict[str, Any]):
+    """Post to LinkedIn (requires Share API key)"""
+    try:
+        api_key = keys_manager.get_key('linkedin_api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="LinkedIn API key not configured")
+        
+        result = await PlatformIntegration.post_to_linkedin(content, api_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/social/post-youtube")
+async def post_to_youtube(content: Dict[str, Any]):
+    """Post to YouTube (requires YouTube Data API key)"""
+    try:
+        api_key = keys_manager.get_key('youtube_api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="YouTube API key not configured")
+        
+        result = await PlatformIntegration.post_to_youtube(content, api_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/social/platforms")
+async def get_all_social_platforms():
+    """Get list of all supported social media platforms with details"""
+    try:
+        platforms_info = await multi_platform_manager.get_social_analytics()
+        return {
+            "success": True,
+             "platforms": {
+                "tiktok": {
+                    "name": "TikTok",
+                    "icon": "🎵",
+                    "description": "Short-form video platform",
+                    "best_time": "6-10 PM",
+                    "content_length": "15-60 seconds",
+                    "features": ["trending_sounds", "hashtag_challenge", "duets", "stitches"]
+                },
+                "instagram": {
+                    "name": "Instagram",
+                    "icon": "📸",
+                    "description": "Photo and video sharing",
+                    "best_time": "11 AM-1 PM, 7-9 PM",
+                    "content_length": "3s-60m for Reels",
+                    "features": ["carousel", "reels", "stories", "igtv"]
+                },
+                "twitter": {
+                    "name": "Twitter/X",
+                    "icon": "𝕏",
+                    "description": "Real-time conversations",
+                    "best_time": "8-10 AM, 5-7 PM",
+                    "content_length": "280 characters",
+                    "features": ["threads", "spaces", "live", "polls"]
+                },
+                "linkedin": {
+                    "name": "LinkedIn",
+                    "icon": "💼",
+                    "description": "Professional network",
+                    "best_time": "8-10 AM, 12-2 PM",
+                    "content_length": "3000 characters",
+                    "features": ["articles", "video", "document", "carousel"]
+                },
+                "youtube": {
+                    "name": "YouTube",
+                    "icon": "▶️",
+                    "description": "Video hosting platform",
+                    "best_time": "2-4 PM",
+                    "content_length": "15-60s for Shorts, unlimited for videos",
+                    "features": ["shorts", "videos", "premieres", "streams"]
+                }
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

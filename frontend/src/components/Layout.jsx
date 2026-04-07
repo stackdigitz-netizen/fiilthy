@@ -12,7 +12,8 @@ import {
   Zap,
   Settings,
   Lightbulb,
-  LineChart
+  LineChart,
+  Share2
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -26,6 +27,7 @@ const Layout = ({ children }) => {
     { name: 'Branding', href: '/branding', icon: Palette },
     { name: 'Content', href: '/content', icon: TrendingUp },
     { name: 'Sales', href: '/sales', icon: Zap },
+    { name: 'Social Media', href: '/social-media', icon: Share2 },
     { name: 'Analytics', href: '/analytics', icon: LineChart },
     { name: 'Automation', href: '/automation', icon: Settings },
     { name: 'Growth Lab', href: '/growth', icon: Lightbulb },
