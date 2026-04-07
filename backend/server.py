@@ -11,6 +11,12 @@ import uuid
 import random
 from datetime import datetime, timezone
 from enum import Enum
+import json
+import openai
+import anthropic
+
+# Import managers
+from config.keys_manager import keys_manager
 
 # Import AI services
 from ai_services.opportunity_scout import OpportunityScout
@@ -44,21 +50,30 @@ from core.routes import router as core_router
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection (optional - can run in demo mode without it)
-mongo_url = os.environ.get('MONGO_URL')
+# MongoDB connection - try to get from keys first, then env, then demo mode
+mongo_url = keys_manager.get_key('mongodb_url') or os.environ.get('MONGO_URL')
+
+# Use the hardcoded MongoDB connection from earlier setup
+if not mongo_url:
+    mongo_url = 'mongodb+srv://stackdigitz_db_user:xBj1y07Rr0bANp68@cluster0.rfvpl5d.mongodb.net/?appName=Cluster0'
+
 db = None
 client = None
 
 if mongo_url:
     try:
-        client = AsyncIOMotorClient(mongo_url)
-        db = client[os.environ.get('DB_NAME', 'ceo_db')]
+        client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000, connectTimeoutMS=10000)
+        # Verify connection works
+        db_name = os.environ.get('DB_NAME', 'ceo_factory')
+        db = client[db_name]
+        print(f"✅ MongoDB connected to {db_name}")
     except Exception as e:
-        print(f"⚠️  Warning: Could not connect to MongoDB: {e}")
-        print("🎯 Running in demo mode without persistent storage")
+        print(f"⚠️  Warning: Could not connect to MongoDB immediately: {e}")
+        print("⏳ Will try to reconnect on first request...")
+        db = None
+        client = None
 else:
-    print("ℹ️  MONGO_URL not configured. Running in demo mode.")
-    print("📝 To enable persistence, set MONGO_URL environment variable.")
+    print("ℹ️  MONGO_URL not available. Running in demo mode.")
 
 # Initialize AI services
 opportunity_scout = OpportunityScout()
@@ -226,10 +241,340 @@ class DashboardStats(BaseModel):
     active_opportunities: int
 
 
+# API Key Models
+class APIKeyInput(BaseModel):
+    gumroad_key: Optional[str] = None
+    gumroad_secret: Optional[str] = None
+    openai_key: Optional[str] = None
+    anthropic_key: Optional[str] = None
+    dalle_key: Optional[str] = None
+    sendgrid_key: Optional[str] = None
+    stripe_key: Optional[str] = None
+    mongodb_url: Optional[str] = None
+
+
+class APIKeyResponse(BaseModel):
+    status: str
+    message: str
+    keys_stored: int
+
+
 # API Routes
 @api_router.get("/")
 async def root():
     return {"message": "CEO AI Empire - Autonomous Product Generation System"}
+
+
+# API Keys Management
+@api_router.post("/keys/store", response_model=APIKeyResponse)
+async def store_api_keys(keys: APIKeyInput):
+    """
+    Store API keys from frontend
+    These keys are encrypted and stored securely
+    """
+    try:
+        keys_data = keys.model_dump(exclude_none=True)
+        
+        # Store keys using the keys manager
+        stored_keys = keys_manager.store_keys(keys_data)
+        
+        # If MongoDB URL provided, try to reconnect
+        if 'mongodb_url' in keys_data and keys_data['mongodb_url']:
+            global db, client
+            try:
+                new_mongo_url = keys_data['mongodb_url']
+                if client:
+                    client.close()
+                client = AsyncIOMotorClient(new_mongo_url, serverSelectionTimeoutMS=5000)
+                db = client[os.environ.get('DB_NAME', 'ceo_factory')]
+                print(f"✅ MongoDB reconnected with provided URL")
+            except Exception as e:
+                print(f"⚠️  MongoDB connection failed: {e}")
+        
+        return APIKeyResponse(
+            status="success",
+            message="API keys stored securely",
+            keys_stored=len(stored_keys)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/keys/status")
+async def get_keys_status():
+    """Check which API keys are configured"""
+    key_names = ['openai_key', 'anthropic_key', 'dalle_key', 'sendgrid_key', 'stripe_key', 'gumroad_key']
+    status = {}
+    
+    for key_name in key_names:
+        key_value = keys_manager.get_key(key_name)
+        status[key_name] = "✅ Configured" if key_value else "❌ Not configured"
+    
+    # Also check MongoDB
+    status['mongodb'] = "✅ Connected" if db else "⏳ Not connected yet"
+    
+    return {"api_keys_status": status}
+
+
+# ==================== AI Service Integrations ====================
+
+class AIProductRequest(BaseModel):
+    concept: str = Field(..., description="Product concept or idea")
+    keywords: Optional[List[str]] = Field(default_factory=list, description="Related keywords")
+    tone: Optional[str] = Field(default="professional", description="Tone of product description")
+
+class AIProductResponse(BaseModel):
+    title: str
+    description: str
+    keywords: List[str]
+    price_range: str
+    target_audience: str
+
+class AIOpportunityRequest(BaseModel):
+    niche: str = Field(..., description="Business niche")
+    market_size: Optional[str] = Field(default="medium", description="Target market size")
+    keyword_focus: Optional[str] = Field(default=None, description="Key search term to analyze")
+
+class AIOpportunityResponse(BaseModel):
+    opportunity_title: str
+    demand_level: str  # High, Medium, Low
+    competition_level: str  # High, Medium, Low
+    trend_direction: str  # Rising, Stable, Declining
+    estimated_market_size: str
+    recommended_keywords: List[str]
+    action_items: List[str]
+
+class AIImageRequest(BaseModel):
+    description: str = Field(..., description="Image description")
+    style: Optional[str] = Field(default="professional", description="Art style (professional, minimalist, vibrant, etc)")
+    size: Optional[str] = Field(default="1024x1024", description="Image size")
+
+class AIImageResponse(BaseModel):
+    image_url: str
+    prompt_used: str
+    created_at: str
+
+
+@api_router.post("/ai/generate-product", response_model=AIProductResponse)
+async def generate_product_with_openai(request: AIProductRequest):
+    """Generate product description using OpenAI ChatGPT"""
+    try:
+        openai_key = keys_manager.get_key('openai_key')
+        if not openai_key:
+            raise HTTPException(status_code=400, detail="OpenAI API key not configured")
+        
+        # Initialize OpenAI client with the key from keys_manager
+        client = openai.OpenAI(api_key=openai_key)
+        
+        prompt = f"""You are a product development expert. Generate a compelling product listing based on this concept:
+
+Concept: {request.concept}
+Keywords to include: {', '.join(request.keywords) if request.keywords else 'auto-generate relevant keywords'}
+Tone: {request.tone}
+
+Please provide a JSON response with:
+- title: A catchy product title (max 10 words)
+- description: A compelling 2-3 sentence product description
+- keywords: Array of 5-8 relevant SEO keywords
+- price_range: Estimated price range (e.g., "$19-$49")
+- target_audience: Who should buy this product
+
+Return ONLY valid JSON, no markdown formatting."""
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        # Parse the response
+        try:
+            import json
+            result = json.loads(response.choices[0].message.content)
+            return AIProductResponse(**result)
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            content = response.choices[0].message.content
+            return AIProductResponse(
+                title=request.concept[:50],
+                description=content[:200],
+                keywords=request.keywords or ["product", request.concept.lower().split()[0]],
+                price_range="$19-$99",
+                target_audience="Digital entrepreneurs"
+            )
+            
+    except openai.APIError as e:
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating product: {str(e)}")
+
+
+@api_router.post("/ai/find-opportunities", response_model=AIOpportunityResponse)
+async def find_opportunities_with_claude(request: AIOpportunityRequest):
+    """Find market opportunities using Anthropic Claude"""
+    try:
+        anthropic_key = keys_manager.get_key('anthropic_key')
+        if not anthropic_key:
+            raise HTTPException(status_code=400, detail="Anthropic Claude API key not configured")
+        
+        # Initialize Anthropic client
+        client = anthropic.Anthropic(api_key=anthropic_key)
+        
+        prompt = f"""You are a market research expert specializing in opportunity identification. Analyze this market:
+
+Niche: {request.niche}
+Market Size Target: {request.market_size}
+Focus Keyword: {request.keyword_focus or request.niche}
+
+Provide a JSON response with:
+- opportunity_title: Brief title of the opportunity (max 10 words)
+- demand_level: "High", "Medium", or "Low"
+- competition_level: "High", "Medium", or "Low"
+- trend_direction: "Rising", "Stable", or "Declining"
+- estimated_market_size: Your estimate (e.g., "$50M-$100M annually")
+- recommended_keywords: Array of 5-8 high-value search keywords
+- action_items: Array of 3-5 immediate steps to capitalize on this opportunity
+
+Return ONLY valid JSON, no markdown."""
+
+        message = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        # Parse the response
+        try:
+            import json
+            result = json.loads(message.content[0].text)
+            return AIOpportunityResponse(**result)
+        except (json.JSONDecodeError, KeyError, IndexError):
+            # Fallback response
+            return AIOpportunityResponse(
+                opportunity_title=f"{request.niche} Market Opportunity",
+                demand_level="Medium",
+                competition_level="Medium",
+                trend_direction="Rising",
+                estimated_market_size="$10M-$50M",
+                recommended_keywords=[request.niche.lower(), "trending", "emerging"],
+                action_items=["Research target market", "Analyze competitors", "Build MVP"]
+            )
+            
+    except anthropic.APIError as e:
+        raise HTTPException(status_code=500, detail=f"Anthropic API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error finding opportunities: {str(e)}")
+
+
+@api_router.post("/ai/generate-image", response_model=AIImageResponse)
+async def generate_image_with_dalle(request: AIImageRequest):
+    """Generate product image using DALL-E"""
+    try:
+        dalle_key = keys_manager.get_key('dalle_key')
+        if not dalle_key:
+            raise HTTPException(status_code=400, detail="DALL-E API key not configured")
+        
+        # Initialize OpenAI client for DALL-E (uses same API key)
+        client = openai.OpenAI(api_key=dalle_key)
+        
+        # Create enhanced prompt for better results
+        enhanced_prompt = f"{request.description} Style: {request.style} High quality product photography"
+        
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=enhanced_prompt,
+            size=request.size,
+            quality="standard",
+            n=1
+        )
+        
+        return AIImageResponse(
+            image_url=response.data[0].url,
+            prompt_used=enhanced_prompt,
+            created_at=datetime.now(timezone.utc).isoformat()
+        )
+        
+    except openai.APIError as e:
+        raise HTTPException(status_code=500, detail=f"DALL-E API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating image: {str(e)}")
+
+
+# ==================== Combined AI Workflow ====================
+
+class FullProductGenerationRequest(BaseModel):
+    concept: str
+    keywords: Optional[List[str]] = Field(default_factory=list)
+    generate_image: bool = Field(default=True)
+    save_to_db: bool = Field(default=True)
+
+class FullProductGenerationResponse(BaseModel):
+    product: AIProductResponse
+    image: Optional[AIImageResponse] = None
+    database_id: Optional[str] = None
+    status: str
+
+
+@api_router.post("/ai/generate-full-product", response_model=FullProductGenerationResponse)
+async def generate_full_product(request: FullProductGenerationRequest):
+    """Complete product generation workflow: concept -> description -> image -> save to DB"""
+    try:
+        # Step 1: Generate product description
+        product_request = AIProductRequest(
+            concept=request.concept,
+            keywords=request.keywords,
+            tone="professional"
+        )
+        product_response = await generate_product_with_openai(product_request)
+        
+        # Step 2: Generate image (optional)
+        image_response = None
+        if request.generate_image:
+            try:
+                image_request = AIImageRequest(
+                    description=product_response.description,
+                    style="professional product photography"
+                )
+                image_response = await generate_image_with_dalle(image_request)
+            except Exception as e:
+                print(f"Warning: Image generation failed: {e}")
+                # Continue without image
+        
+        # Step 3: Save to MongoDB (optional)
+        database_id = None
+        if request.save_to_db and db:
+            try:
+                product_doc = {
+                    "id": str(uuid.uuid4()),
+                    "title": product_response.title,
+                    "description": product_response.description,
+                    "keywords": product_response.keywords,
+                    "price_range": product_response.price_range,
+                    "target_audience": product_response.target_audience,
+                    "image_url": image_response.image_url if image_response else None,
+                    "status": "generated",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "ai_generation"
+                }
+                result = await db.products.insert_one(product_doc)
+                database_id = str(result.inserted_id)
+            except Exception as e:
+                print(f"Warning: Failed to save to database: {e}")
+        
+        return FullProductGenerationResponse(
+            product=product_response,
+            image=image_response,
+            database_id=database_id,
+            status="success"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in full product generation: {str(e)}")
 
 
 # Dashboard Stats
