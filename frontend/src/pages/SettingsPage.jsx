@@ -7,12 +7,26 @@ const SettingsPage = () => {
   const [copied, setCopied] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [apiKeys, setApiKeys] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     key: '',
     category: 'AI',
     description: ''
   });
+
+  // Backend API key templates
+  const backendKeyTemplates = [
+    { name: 'openai_key', label: 'OpenAI API Key', category: 'AI' },
+    { name: 'anthropic_key', label: 'Anthropic Claude Key', category: 'AI' },
+    { name: 'dalle_key', label: 'DALL-E API Key', category: 'AI' },
+    { name: 'sendgrid_key', label: 'SendGrid API Key', category: 'Email' },
+    { name: 'stripe_key', label: 'Stripe Live Key', category: 'Platform' },
+    { name: 'gumroad_key', label: 'Gumroad API Key', category: 'Platform' },
+    { name: 'gumroad_secret', label: 'Gumroad Secret', category: 'Platform' },
+    { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database' }
+  ];
 
   // Function to load keys from localStorage
   const loadKeysFromStorage = () => {
@@ -100,6 +114,60 @@ const SettingsPage = () => {
     return key.substring(0, 4) + '***...' + key.substring(key.length - 4);
   };
 
+  // Sync keys to backend API
+  const syncKeysToBackend = async () => {
+    setSyncing(true);
+    setSyncStatus(null);
+    
+    try {
+      // Transform localStorage keys to backend format
+      const keysToSend = {};
+      apiKeys.forEach(apiKey => {
+        // Map display names to backend key names
+        if (apiKey.name.toLowerCase().includes('openai')) keysToSend.openai_key = apiKey.key;
+        if (apiKey.name.toLowerCase().includes('anthropic')) keysToSend.anthropic_key = apiKey.key;
+        if (apiKey.name.toLowerCase().includes('dall')) keysToSend.dalle_key = apiKey.key;
+        if (apiKey.name.toLowerCase().includes('sendgrid')) keysToSend.sendgrid_key = apiKey.key;
+        if (apiKey.name.toLowerCase().includes('stripe')) keysToSend.stripe_key = apiKey.key;
+        if (apiKey.category === 'Platform' && apiKey.name.toLowerCase().includes('gumroad')) {
+          if (apiKey.name.toLowerCase().includes('secret')) {
+            keysToSend.gumroad_secret = apiKey.key;
+          } else {
+            keysToSend.gumroad_key = apiKey.key;
+          }
+        }
+        if (apiKey.name.toLowerCase().includes('mongodb')) keysToSend.mongodb_url = apiKey.key;
+      });
+
+      const response = await fetch('http://localhost:8000/api/keys/store', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(keysToSend)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setSyncStatus({
+        type: 'success',
+        message: `✅ Successfully synced ${result.keys_stored} keys to backend!`
+      });
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (error) {
+      setSyncStatus({
+        type: 'error',
+        message: `❌ Failed to sync keys: ${error.message}`
+      });
+      console.error('Sync error:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getCategoryCount = (category) => {
     return apiKeys.filter(k => k.category === category).length;
   };
@@ -136,6 +204,37 @@ const SettingsPage = () => {
             <span className="summary-value text-warning">{apiKeys.filter(k => k.status === 'pending').length}</span>
           </div>
         </div>
+
+        {syncStatus && (
+          <div style={{
+            padding: '12px 16px',
+            marginBottom: '16px',
+            borderRadius: '6px',
+            backgroundColor: syncStatus.type === 'success' ? '#d4edda' : '#f8d7da',
+            color: syncStatus.type === 'success' ? '#155724' : '#721c24',
+            border: `1px solid ${syncStatus.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`
+          }}>
+            {syncStatus.message}
+          </div>
+        )}
+
+        <button
+          onClick={syncKeysToBackend}
+          disabled={syncing || apiKeys.length === 0}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: syncing ? '#cccccc' : '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: syncing ? 'not-allowed' : 'pointer',
+            marginBottom: '16px',
+            fontSize: '14px',
+            fontWeight: '600'
+          }}
+        >
+          {syncing ? '🔄 Syncing...' : '📤 Sync Keys to Backend'}
+        </button>
       </div>
 
       <div className="grid-2">
