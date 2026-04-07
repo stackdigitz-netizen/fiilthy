@@ -79,7 +79,7 @@ services:
     plan: starter
     branch: main
     buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm start
+    startCommand: cd frontend && npx serve -s build -l ${PORT:-3000}
     region: oregon
     envVars:
       - key: REACT_APP_API_URL

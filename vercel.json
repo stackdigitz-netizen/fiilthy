@@ -1,8 +1,19 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
   "env": {
-    "REACT_APP_BACKEND_URL": "https://ceo-1-34jx.onrender.com"
+    "REACT_APP_BACKEND_URL": "https://ceo-1-34jx.onrender.com",
+    "CI": "false"
   },
   "git": {
     "silent": true
