@@ -2460,6 +2460,271 @@ async def health():
             "timestamp": datetime.now(timezone.utc).isoformat()
         }, 503
 
+
+# ==================== Email & Notifications ====================
+
+class EmailRequest(BaseModel):
+    to_email: str = Field(..., description="Recipient email address")
+    subject: str = Field(..., description="Email subject")
+    body: str = Field(..., description="Email body (HTML supported)")
+    template_type: Optional[str] = Field(default="general", description="Email template type")
+
+class EmailResponse(BaseModel):
+    status: str
+    message_id: Optional[str] = None
+    message: str
+    sent_at: str
+
+class NotificationRequest(BaseModel):
+    recipient_id: str
+    type: str  # product_ready, opportunity_found, task_completed, revenue_update
+    title: str
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+class NotificationResponse(BaseModel):
+    notification_id: str
+    status: str
+    created_at: str
+
+
+@api_router.post("/email/send", response_model=EmailResponse)
+async def send_email(request: EmailRequest):
+    """Send email using SendGrid"""
+    try:
+        sendgrid_key = keys_manager.get_key('sendgrid_key')
+        if not sendgrid_key:
+            raise HTTPException(status_code=400, detail="SendGrid API key not configured")
+        
+        # Import SendGrid SDK
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        
+        # Create email message
+        message = Mail(
+            from_email='noreply@ceo-empire.com',  # Change to your verified sender
+            to_emails=request.to_email,
+            subject=request.subject,
+            html_content=request.body
+        )
+        
+        # Send via SendGrid
+        sg = SendGridAPIClient(sendgrid_key)
+        response = sg.send(message)
+        
+        return EmailResponse(
+            status="success",
+            message_id=response.headers.get('X-Message-Id', 'unknown'),
+            message="Email sent successfully",
+            sent_at=datetime.now(timezone.utc).isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except ImportError:
+        raise HTTPException(
+            status_code=500, 
+            detail="SendGrid SDK not installed. Run: pip install sendgrid"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending email: {str(e)}")
+
+
+@api_router.post("/email/send-template", response_model=EmailResponse)
+async def send_templated_email(
+    to_email: str,
+    template_type: str = "product_ready",
+    template_data: Optional[Dict[str, Any]] = None
+):
+    """Send email using predefined templates"""
+    try:
+        sendgrid_key = keys_manager.get_key('sendgrid_key')
+        if not sendgrid_key:
+            raise HTTPException(status_code=400, detail="SendGrid API key not configured")
+        
+        if template_data is None:
+            template_data = {}
+        
+        # Define email templates
+        templates = {
+            "product_ready": {
+                "subject": f"🚀 Your Product '{template_data.get('product_title', 'New Product')}' is Ready!",
+                "body": f"""
+                    <h1>Great News! 🎉</h1>
+                    <p>Your AI-generated product <strong>{template_data.get('product_title', 'product')}</strong> is now ready to publish!</p>
+                    <p><strong>Description:</strong> {template_data.get('product_description', '')}</p>
+                    <p><strong>Price Range:</strong> {template_data.get('price_range', 'To be determined')}</p>
+                    <p>You can now publish it to your marketplaces and start generating revenue.</p>
+                    <p>Ready to get started? Log in to your dashboard now!</p>
+                """
+            },
+            "opportunity_found": {
+                "subject": "💡 New Market Opportunity Identified!",
+                "body": f"""
+                    <h1>Exciting Opportunity! 💰</h1>
+                    <p>Our AI discovered a high-potential market opportunity in <strong>{template_data.get('niche', 'your niche')}</strong></p>
+                    <p><strong>Market Size:</strong> {template_data.get('market_size', 'Large')}</p>
+                    <p><strong>Demand Level:</strong> {template_data.get('demand_level', 'High')}</p>
+                    <p><strong>Top Keywords:</strong> {', '.join(template_data.get('keywords', []))}</p>
+                    <p>Check your dashboard to create a product for this opportunity!</p>
+                """
+            },
+            "task_completed": {
+                "subject": "✅ AI Task Completed",
+                "body": f"""
+                    <h1>Task Completed! ✨</h1>
+                    <p>Your AI task has completed successfully.</p>
+                    <p><strong>Task:</strong> {template_data.get('task_name', 'Unknown')}</p>
+                    <p><strong>Results:</strong> {template_data.get('results', 'Check your dashboard')}</p>
+                """
+            },
+            "revenue_update": {
+                "subject": "💰 Revenue Update",
+                "body": f"""
+                    <h1>Revenue Report 📊</h1>
+                    <p>Amazing progress!</p>
+                    <p><strong>Today's Revenue:</strong> ${template_data.get('revenue_today', 0)}</p>
+                    <p><strong>Total Revenue:</strong> ${template_data.get('total_revenue', 0)}</p>
+                    <p><strong>New Conversions:</strong> {template_data.get('conversions', 0)}</p>
+                """
+            }
+        }
+        
+        template = templates.get(template_type, templates["product_ready"])
+        
+        # Send email
+        request_obj = EmailRequest(
+            to_email=to_email,
+            subject=template["subject"],
+            body=template["body"],
+            template_type=template_type
+        )
+        
+        return await send_email(request_obj)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending template email: {str(e)}")
+
+
+@api_router.post("/notifications", response_model=NotificationResponse)
+async def create_notification(request: NotificationRequest):
+    """Create and store a notification"""
+    try:
+        notification = {
+            "notification_id": str(uuid.uuid4()),
+            "recipient_id": request.recipient_id,
+            "type": request.type,
+            "title": request.title,
+            "message": request.message,
+            "data": request.data or {},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Store in database if available
+        if db:
+            await db.notifications.insert_one(notification)
+        
+        return NotificationResponse(
+            notification_id=notification["notification_id"],
+            status="created",
+            created_at=notification["created_at"]
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating notification: {str(e)}")
+
+
+@api_router.get("/notifications/{recipient_id}")
+async def get_notifications(recipient_id: str, limit: int = 20, unread_only: bool = False):
+    """Get notifications for a user"""
+    try:
+        if not db:
+            return {"notifications": [], "total": 0}
+        
+        query = {"recipient_id": recipient_id}
+        if unread_only:
+            query["read"] = False
+        
+        notifications = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+        
+        return {
+            "notifications": notifications,
+            "total": len(notifications),
+            "recipient_id": recipient_id
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
+
+
+@api_router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str):
+    """Mark a notification as read"""
+    try:
+        if not db:
+            return {"status": "database_not_available"}
+        
+        result = await db.notifications.update_one(
+            {"notification_id": notification_id},
+            {"$set": {"read": True, "read_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        return {"status": "marked_read"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error marking notification: {str(e)}")
+
+
+@api_router.post("/email/send-product-notification")
+async def send_product_notification(product_id: str, to_email: str):
+    """Send email notification when product is ready (recommended for workflow)"""
+    try:
+        if not db:
+            raise HTTPException(status_code=400, detail="Database not available")
+        
+        # Get product from database
+        product = await db.products.find_one({"id": product_id}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        
+        # Prepare email with product details
+        email_request = EmailRequest(
+            to_email=to_email,
+            subject=f"🚀 Your AI-Generated Product is Ready: {product['title']}",
+            body=f"""
+                <h1>{product['title']}</h1>
+                <p><strong>Description:</strong> {product['description']}</p>
+                <p><strong>Keywords:</strong> {', '.join(product.get('keywords', []))}</p>
+                <p><strong>Target Audience:</strong> {product.get('target_audience', 'Everyone')}</p>
+                <p><strong>Price Range:</strong> {product.get('price_range', '$9.99-$99.99')}</p>
+                {f'<img src="{product.get("image_url", "")}" style="max-width: 300px; height: auto;" />' if product.get('image_url') else ''}
+                <p><strong>Next Steps:</strong></p>
+                <ol>
+                    <li>Review the product details</li>
+                    <li>Adjust pricing if needed</li>
+                    <li>Add to your marketplace</li>
+                    <li>Start selling!</li>
+                </ol>
+            """,
+            template_type="product_ready"
+        )
+        
+        return await send_email(email_request)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending product notification: {str(e)}")
+
+
 # Include the router in the main app
 app.include_router(api_router)
 app.include_router(core_router, prefix="/api")

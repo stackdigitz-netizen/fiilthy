@@ -1,23 +1,25 @@
 # AI Service Endpoints Documentation
 
 ## Overview
-The system now includes 4 new AI service endpoints that leverage OpenAI, Anthropic, and DALL-E APIs through the secure key management system.
+The system includes comprehensive AI service endpoints and notification system:
+- **5 AI Service Endpoints** for product generation, opportunity discovery, and image creation
+- **6 Email & Notification Endpoints** for customer communication and task tracking
+- **Secure Key Management** with Fernet encryption for all API keys
 
 ## Architecture Flow
 
 ```
 Frontend Settings Page
-    ↓ (via localStorage)
-Backend KeysManager
-    ↓ (encrypted storage)
-AI Service Endpoints
-    ↓ (API calls)
-OpenAI / Anthropic / DALL-E
-    ↓ (responses)
-MongoDB (optional persistence)
+    ↓ (via localStorage + POST /api/keys/store)
+Backend KeysManager (Fernet encrypted)
+    ↓ (retrieves keys as needed)
+AI Service Endpoints / Email Service Endpoints
+    ↓ (API calls to OpenAI / Anthropic / DALL-E / SendGrid)
+MongoDB (stores products, notifications, metadata)
+    ↓ (data persistence)
 ```
 
-## Endpoints
+## Part 1: AI Service Endpoints
 
 ### 1. GET `/api/keys/status`
 **Purpose:** Check which API keys are configured
@@ -320,4 +322,399 @@ This tests all 5 endpoints with sample data.
 - **Generate Image**: ~30 seconds (DALL-E processing)
 - **Full Product**: ~40-50 seconds (all above combined)
 
-Consider implementing background tasks for longer operations.
+---
+
+# Part 2: Email & Notification Endpoints
+
+## Overview
+
+The system includes 6 email and notification endpoints for sending automated communications and tracking notifications:
+
+1. **Email Management** - Send direct emails and templated emails via SendGrid
+2. **Notifications** - Create, retrieve, and manage in-app notifications
+3. **Workflow Integration** - Automatic emails when products are ready
+
+## Email Endpoints
+
+### 1. POST `/api/email/send`
+**Purpose:** Send email directly
+
+**Request:**
+```json
+{
+  "to_email": "customer@example.com",
+  "subject": "Welcome to CEO Empire! 🚀",
+  "body": "<h1>Welcome!</h1><p>Your account is ready...</p>",
+  "template_type": "general"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message_id": "unique-message-id",
+  "message": "Email sent successfully",
+  "sent_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Error Scenarios:**
+- `400` - SendGrid API key not configured
+- `500` - SendGrid SDK not installed or API error
+
+### 2. POST `/api/email/send-template`
+**Purpose:** Send email using predefined templates
+
+**Supported Templates:**
+- `product_ready` - When AI-generated product is ready
+- `opportunity_found` - When market opportunity is discovered
+- `task_completed` - When background task completes
+- `revenue_update` - Daily/weekly revenue report
+
+**Request:**
+```bash
+POST /api/email/send-template?to_email=customer@example.com&template_type=product_ready
+
+# With template data:
+{
+  "product_title": "Email Marketing Guide",
+  "product_description": "Master email with AI",
+  "price_range": "$29-$99"
+}
+```
+
+**Example Responses:**
+
+**Product Ready Email:**
+```html
+🚀 Your Product 'Email Marketing Guide' is Ready!
+---
+Description: Master email marketing with AI-generated copy...
+Price Range: $29-$99
+[Next Steps to publish]
+```
+
+**Opportunity Found Email:**
+```html
+💡 New Market Opportunity Identified!
+---
+Niche: AI-powered email marketing
+Market Size: $500M-$1B
+Demand Level: High
+Top Keywords: email AI, personalization, marketing automation
+```
+
+### 3. POST `/api/email/send-product-notification`
+**Purpose:** Send email when product is ready (recommended for workflow)
+
+**Request:**
+```bash
+POST /api/email/send-product-notification
+?product_id=prod_12345
+&to_email=customer@example.com
+```
+
+**What it does:**
+1. Retrieves product from database
+2. Includes full product details in email
+3. Shows product image if available
+4. Provides next steps for publishing
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Email sent successfully",
+  "sent_at": "2024-01-15T10:30:00Z"
+}
+```
+
+## Notification Endpoints
+
+### 4. POST `/api/notifications`
+**Purpose:** Create a notification
+
+**Request:**
+```json
+{
+  "recipient_id": "user_12345",
+  "type": "product_ready",
+  "title": "Product Ready!",
+  "message": "Your AI-generated product is ready for publishing",
+  "data": {
+    "product_id": "prod_67890",
+    "product_title": "Email Marketing Guide"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "notification_id": "notif_abc123",
+  "status": "created",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Notification Types:**
+- `product_ready` - Product generated and ready
+- `opportunity_found` - Market opportunity identified
+- `task_completed` - Background AI task finished
+- `revenue_update` - Revenue milestone reached
+- `error` - System or task error occurred
+- `general` - General notification
+
+### 5. GET `/api/notifications/{recipient_id}`
+**Purpose:** Retrieve notifications for a user
+
+**Query Parameters:**
+- `limit` (default: 20) - Number of notifications to return
+- `unread_only` (default: false) - Only return unread notifications
+
+**Request:**
+```bash
+GET /api/notifications/user_12345?limit=10&unread_only=false
+```
+
+**Response:**
+```json
+{
+  "notifications": [
+    {
+      "notification_id": "notif_1",
+      "recipient_id": "user_12345",
+      "type": "product_ready",
+      "title": "Product Ready!",
+      "message": "...",
+      "read": false,
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "notification_id": "notif_2",
+      "type": "opportunity_found",
+      ...
+    }
+  ],
+  "total": 2,
+  "recipient_id": "user_12345"
+}
+```
+
+### 6. POST `/api/notifications/{notification_id}/read`
+**Purpose:** Mark notification as read
+
+**Request:**
+```bash
+POST /api/notifications/notif_abc123/read
+```
+
+**Response:**
+```json
+{
+  "status": "marked_read"
+}
+```
+
+## Integration Workflow Example
+
+### Complete Product Generation with Notification
+
+```python
+import httpx
+
+async def create_and_notify():
+    # Step 1: Generate product with AI
+    product_response = await client.post(
+        "/api/ai/generate-full-product",
+        json={
+            "concept": "Email marketing platform",
+            "keywords": ["email", "marketing", "AI"],
+            "generate_image": True,
+            "save_to_db": True
+        }
+    )
+    
+    # Step 2: Send product ready email
+    if product_response["status"] == "success":
+        product_id = product_response["database_id"]
+        await client.post(
+            f"/api/email/send-product-notification",
+            params={
+                "product_id": product_id,
+                "to_email": "user@example.com"
+            }
+        )
+        
+        # Step 3: Create notification for dashboard
+        await client.post(
+            "/api/notifications",
+            json={
+                "recipient_id": "user_12345",
+                "type": "product_ready",
+                "title": f"Product Ready: {product_response['product']['title']}",
+                "message": "Your AI-generated product is ready to publish!",
+                "data": {"product_id": product_id}
+            }
+        )
+```
+
+## Frontend Integration Example
+
+```javascript
+// Get unread notifications
+async function loadNotifications() {
+  const response = await fetch(
+    `/api/notifications/user_12345?unread_only=true`
+  );
+  const data = await response.json();
+  displayNotifications(data.notifications);
+}
+
+// Mark notification as read
+async function markAsRead(notificationId) {
+  await fetch(
+    `/api/notifications/${notificationId}/read`,
+    { method: "POST" }
+  );
+}
+
+// Send email template with custom data
+async function sendProductEmail() {
+  const response = await fetch(
+    `/api/email/send-template?to_email=customer@example.com&template_type=product_ready`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_title: "Email Marketing Guide",
+        product_description: "Master email with AI",
+        price_range: "$29-$99"
+      })
+    }
+  );
+  const result = await response.json();
+  console.log("Email sent:", result);
+}
+```
+
+## SendGrid Setup Required
+
+### 1. Create SendGrid Account
+- Go to https://sendgrid.com
+- Sign up for free (limited emails)
+- Create API key with "Mail Send" permissions
+
+### 2. Add to Settings
+- Go to Settings page in the application
+- Paste SendGrid API key
+- Save (will be encrypted)
+
+### 3. Verify Sender Email
+- SendGrid requires verified sender email
+- Update the `from_email` in `/api/email/send` endpoint
+- Or use the free verified domain
+
+### 4. Test Deployment
+```bash
+cd backend
+python test_email_notifications.py
+```
+
+## Database Schema
+
+### notifications collection
+```json
+{
+  "notification_id": "string",
+  "recipient_id": "string",
+  "type": "string",
+  "title": "string",
+  "message": "string",
+  "data": {},
+  "read": boolean,
+  "read_at": "ISO timestamp (optional)",
+  "created_at": "ISO timestamp"
+}
+```
+
+## Error Handling
+
+### Email Sending Errors
+
+| Error | Solution |
+|-------|----------|
+| `400 - SendGrid key not configured` | Add SendGrid API key in Settings |
+| `500 - SendGrid SDK not installed` | Run `pip install sendgrid` |
+| `500 - Invalid API key` | Verify key in SendGrid dashboard |
+| `500 - Email validation failed` | Check email address format |
+
+### Notification Errors
+
+| Error | Solution |
+|-------|----------|
+| `400 - Database not available` | Ensure MongoDB is connected |
+| `404 - Notification not found` | Verify notification ID |
+| `500 - Database error` | Check MongoDB connection |
+
+## Best Practices
+
+### Design Considerations
+
+1. **Email Templates** - Keep HTML clean and responsive
+2. **Personalization** - Always include customer name when possible
+3. **Frequency** - Don't overwhelm users with notifications
+4. **Transactions** - Use verified sender email for SendGrid
+5. **Fallbacks** - Have plan if email service is down
+
+### Common Workflows
+
+1. **Product Ready Flow:**
+   - Generate product (AI endpoint)
+   - Create database notification
+   - Send email notification
+   - Update dashboard
+
+2. **Opportunity Discovery Flow:**
+   - Run opportunity scout (background)
+   - Get results
+   - Send opportunity email
+   - Create dashboard notification
+
+3. **Revenue Updates Flow:**
+   - Aggregate daily sales
+   - Calculate revenue
+   - Send revenue email  
+   - Create notification
+
+## Testing Email Endpoints
+
+Test suite includes all email and notification scenarios:
+
+```bash
+cd backend
+python test_email_notifications.py
+```
+
+Tests:
+- Direct email sending
+- Template-based emails (all templates)
+- Notification creation
+- Notification retrieval
+- Mark as read
+- Product-specific notifications
+
+## Performance Characteristics
+
+- **Email Send**: ~2-3 seconds (API call to SendGrid)
+- **Notification Create**: <100ms (direct database insert)
+- **Notification Retrieve**: <50ms (single query)
+- **Template Processing**: <100ms (string rendering)
+
+## Rate Limiting
+
+SendGrid free tier: 100 emails/day
+SendGrid Pro: Unlimited (based on plan)
+
+Keep track of email volume in production!
