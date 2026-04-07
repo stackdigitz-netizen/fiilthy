@@ -14,31 +14,39 @@ const SettingsPage = () => {
     description: ''
   });
 
-  // Load keys from localStorage on mount and whenever storage changes
-  useEffect(() => {
-    const loadKeys = () => {
-      const savedKeys = localStorage.getItem('apiKeys');
-      if (savedKeys) {
-        try {
-          setApiKeys(JSON.parse(savedKeys));
-        } catch (e) {
-          console.error('Failed to load saved keys', e);
+  // Function to load keys from localStorage
+  const loadKeysFromStorage = () => {
+    const savedKeys = localStorage.getItem('apiKeys');
+    if (savedKeys) {
+      try {
+        const parsed = JSON.parse(savedKeys);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setApiKeys(parsed);
         }
+      } catch (e) {
+        console.error('Failed to load saved keys', e);
       }
-    };
+    }
+  };
 
-    // Load on mount
-    loadKeys();
+  // Load keys from localStorage on mount and when storage changes
+  useEffect(() => {
+    // Load immediately
+    loadKeysFromStorage();
 
-    // Also listen for storage changes
-    window.addEventListener('storage', loadKeys);
-    
-    // Add a custom event listener for local storage changes (when changed in same window)
-    window.addEventListener('apiKeysUpdated', loadKeys);
+    // Also try loading after a small delay in case localStorage is being populated
+    const timer = setTimeout(() => {
+      loadKeysFromStorage();
+    }, 500);
+
+    // Listen for storage changes
+    window.addEventListener('storage', loadKeysFromStorage);
+    window.addEventListener('apiKeysUpdated', loadKeysFromStorage);
     
     return () => {
-      window.removeEventListener('storage', loadKeys);
-      window.removeEventListener('apiKeysUpdated', loadKeys);
+      clearTimeout(timer);
+      window.removeEventListener('storage', loadKeysFromStorage);
+      window.removeEventListener('apiKeysUpdated', loadKeysFromStorage);
     };
   }, []);
 
