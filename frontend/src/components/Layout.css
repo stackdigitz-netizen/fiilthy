@@ -33,6 +33,17 @@
   backdrop-filter: blur(10px);
 }
 
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 10, 24, 0.45);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  z-index: 90;
+  cursor: pointer;
+}
+
 .sidebar.closed {
   width: 80px;
 }
@@ -311,6 +322,10 @@
 }
 
 @media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+  }
+
   .sidebar {
     position: fixed;
     left: -260px;
@@ -323,12 +338,22 @@
     left: 0;
   }
 
+  .sidebar.closed + .sidebar-overlay {
+    display: none;
+  }
+
   .main-content {
     margin-left: 0;
   }
 
   .page-container {
     padding: 20px;
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar-overlay {
+    display: none;
   }
 }
 

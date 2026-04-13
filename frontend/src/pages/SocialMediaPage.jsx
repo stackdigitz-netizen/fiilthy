@@ -5,14 +5,6 @@ import './Pages.css';
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 export default function SocialMediaPage() {
-  const [platforms, setPlatforms] = useState({
-    tiktok: { enabled: false, posts: [], connecting: false },
-    instagram: { enabled: false, posts: [], connecting: false },
-    twitter: { enabled: false, posts: [], connecting: false },
-    linkedin: { enabled: false, posts: [], connecting: false },
-    youtube: { enabled: false, posts: [], connecting: false }
-  });
-
   const [selectedProduct, setSelectedProduct] = useState('');
   const [products, setProducts] = useState([]);
   const [postsGenerated, setPostsGenerated] = useState([]);
@@ -164,6 +156,67 @@ export default function SocialMediaPage() {
     );
   };
 
+  const normalizePosts = (posts) => (Array.isArray(posts) ? posts : posts ? [posts] : []);
+
+  const getPlatformConnectionState = (platformId) => {
+    const posts = normalizePosts(postsGenerated?.[platformId]);
+    return {
+      enabled: selectedPlatforms.includes(platformId),
+      count: posts.length
+    };
+  };
+
+  const copyPostToClipboard = async (platform, post) => {
+    const parts = [post.caption, post.script, post.content, post.hook && `Hook: ${post.hook}`]
+      .filter(Boolean)
+      .join('\n\n');
+
+    if (!parts) {
+      setError(`No copyable content found for ${platform}.`);
+      return;
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(parts);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = parts;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      setSuccess(`${platform} post copied to clipboard.`);
+      setError('');
+    } catch (err) {
+      setError(`Failed to copy ${platform} post: ${err.message}`);
+    }
+  };
+
+  const deleteGeneratedPost = (platform, indexToDelete) => {
+    setPostsGenerated((prev) => {
+      const next = { ...prev };
+      const currentPosts = normalizePosts(next[platform]);
+      const updatedPosts = currentPosts.filter((_, index) => index !== indexToDelete);
+
+      if (updatedPosts.length === 0) {
+        delete next[platform];
+      } else {
+        next[platform] = updatedPosts;
+      }
+
+      return next;
+    });
+
+    setSuccess(`${platform} post removed from the preview.`);
+    setError('');
+  };
+
   const PlatformCard = ({ name, icon, enabled, count }) => (
     <div className={`platform-card ${enabled ? 'active' : ''}`}>
       <div className="platform-header">
@@ -252,6 +305,7 @@ export default function SocialMediaPage() {
             ].map(platform => (
               <button
                 key={platform.id}
+                type="button"
                 onClick={() => togglePlatform(platform.id)}
                 className={`platform-toggle ${selectedPlatforms.includes(platform.id) ? 'selected' : ''}`}
               >
@@ -269,6 +323,7 @@ export default function SocialMediaPage() {
             onClick={handleGenerateMultiPlatformPosts}
             disabled={loading || !selectedProduct}
             className="btn btn-primary"
+            type="button"
           >
             {loading ? (
               <>
@@ -287,6 +342,7 @@ export default function SocialMediaPage() {
             onClick={handleGenerateYouTubeShorts}
             disabled={loading || !selectedProduct}
             className="btn btn-secondary"
+            type="button"
           >
             {loading ? (
               <>
@@ -306,6 +362,7 @@ export default function SocialMediaPage() {
               onClick={handleScheduleAllPosts}
               disabled={loading}
               className="btn btn-success"
+              type="button"
             >
               <Calendar size={16} />
               Schedule All Posts
@@ -333,7 +390,7 @@ export default function SocialMediaPage() {
               </div>
 
               <div className="posts-list">
-                {(Array.isArray(posts) ? posts : [posts]).map((post, idx) => (
+                {normalizePosts(posts).map((post, idx) => (
                   <div key={idx} className="post-preview">
                     <div className="post-meta">
                       <span className="post-type">
@@ -371,10 +428,20 @@ export default function SocialMediaPage() {
                     </div>
 
                     <div className="post-actions">
-                      <button className="icon-btn" title="Copy">
+                      <button
+                        className="icon-btn"
+                        title="Copy"
+                        type="button"
+                        onClick={() => copyPostToClipboard(platform, post)}
+                      >
                         <Share2 size={14} />
                       </button>
-                      <button className="icon-btn" title="Delete">
+                      <button
+                        className="icon-btn"
+                        title="Delete"
+                        type="button"
+                        onClick={() => deleteGeneratedPost(platform, idx)}
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -390,11 +457,11 @@ export default function SocialMediaPage() {
       <div className="card">
         <h2>🔗 Platform Connections</h2>
         <div className="platforms-overview">
-          <PlatformCard name="TikTok" icon="🎵" enabled={false} count={0} />
-          <PlatformCard name="Instagram" icon="📸" enabled={false} count={0} />
-          <PlatformCard name="Twitter/X" icon="𝕏" enabled={false} count={0} />
-          <PlatformCard name="LinkedIn" icon="💼" enabled={false} count={0} />
-          <PlatformCard name="YouTube" icon="▶️" enabled={false} count={0} />
+          <PlatformCard name="TikTok" icon="🎵" {...getPlatformConnectionState('tiktok')} />
+          <PlatformCard name="Instagram" icon="📸" {...getPlatformConnectionState('instagram')} />
+          <PlatformCard name="Twitter/X" icon="𝕏" {...getPlatformConnectionState('twitter')} />
+          <PlatformCard name="LinkedIn" icon="💼" {...getPlatformConnectionState('linkedin')} />
+          <PlatformCard name="YouTube" icon="▶️" {...getPlatformConnectionState('youtube')} />
         </div>
         <p className="info-text">
           💡 <strong>Tip:</strong> Connect your platform accounts in Settings to enable automatic posting. Generated posts can be previewed and modified before publishing.

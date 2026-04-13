@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { TrendingUp, BarChart3, Zap, AlertCircle, RefreshCw } from 'lucide-react';
 import './Pages.css';
 
@@ -137,6 +138,7 @@ const Dashboard = () => {
           <button
             onClick={loadDashboardData}
             disabled={loading}
+            type="button"
             style={{
               padding: '8px 16px',
               backgroundColor: '#007bff',
@@ -170,9 +172,20 @@ const Dashboard = () => {
               )}
             </p>
           </div>
-          <button className="btn btn-primary">
-            {dashboardStats ? '✓ System Ready' : 'Connecting...'}
-          </button>
+          {error ? (
+            <button
+              className="btn btn-primary"
+              onClick={loadDashboardData}
+              disabled={loading}
+              type="button"
+            >
+              {loading ? 'Connecting...' : 'Retry Sync'}
+            </button>
+          ) : (
+            <Link className="btn btn-primary" to="/analytics">
+              {loading ? 'Connecting...' : 'Open Analytics'}
+            </Link>
+          )}
         </div>
       </div>
 

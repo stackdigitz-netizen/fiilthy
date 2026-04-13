@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
@@ -23,8 +23,29 @@ import {
 
 const Layout = ({ children }) => {
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    return window.innerWidth > 768;
+  });
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarOpen(window.innerWidth > 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -87,12 +108,15 @@ const Layout = ({ children }) => {
         </div>
       </aside>
 
+      {sidebarOpen && <button className="sidebar-overlay" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
+
       {/* Main Content */}
       <main className="main-content">
         <header className="top-bar">
           <div className="top-bar-left">
             <button
               className="menu-button"
+              type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -104,7 +128,7 @@ const Layout = ({ children }) => {
               <span className="status-dot"></span>
               LIVE
             </div>
-            <button className="logout-button" onClick={logout}>Logout</button>
+            <button className="logout-button" type="button" onClick={logout}>Logout</button>
           </div>
         </header>
 
