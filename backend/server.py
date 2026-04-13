@@ -103,7 +103,8 @@ client = None
 
 if mongo_url:
     try:
-        client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000, connectTimeoutMS=10000)
+        import certifi
+        client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000, connectTimeoutMS=10000, tlsCAFile=certifi.where())
         # Verify connection works
         db_name = resolve_db_name()
         db = client[db_name]
@@ -523,7 +524,8 @@ async def store_api_keys(keys: APIKeyInput, _auth: dict = Depends(require_auth))
                 if client is not None:
                     client.close()
                 if is_supported_mongo_url(new_mongo_url):
-                    client = AsyncIOMotorClient(new_mongo_url, serverSelectionTimeoutMS=5000)
+                    import certifi
+                    client = AsyncIOMotorClient(new_mongo_url, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
                     db = client[resolve_db_name()]
                     mongo_url = new_mongo_url
                     print("[OK] MongoDB reconnected with provided URL")
@@ -3313,6 +3315,93 @@ async def get_product_summary():
     """Get summary of all products across platforms"""
     try:
         return await product_discovery.get_product_summary()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ QUALITY CHECKLIST ============
+
+QUALITY_CHECKLIST = [
+    # Category: Content
+    {"id": "title_set",        "category": "Content",    "label": "Title is clear and compelling",        "required": True},
+    {"id": "description_written", "category": "Content", "label": "Description is detailed (150+ words)", "required": True},
+    {"id": "price_set",        "category": "Content",    "label": "Price is set",                         "required": True},
+    {"id": "cover_created",    "category": "Content",    "label": "Cover / thumbnail image created",      "required": True},
+    # Category: Product files
+    {"id": "files_generated",  "category": "Files",      "label": "Product files generated",              "required": True},
+    {"id": "files_reviewed",   "category": "Files",      "label": "Files manually reviewed for quality",  "required": True},
+    {"id": "no_placeholder",   "category": "Files",      "label": "No placeholder / lorem ipsum content", "required": True},
+    # Category: Marketing
+    {"id": "email_sequence",   "category": "Marketing",  "label": "Email sequence created (5+ emails)",   "required": True},
+    {"id": "social_posts",     "category": "Marketing",  "label": "3+ social media posts drafted",        "required": True},
+    {"id": "sales_copy",       "category": "Marketing",  "label": "Sales page / landing copy written",    "required": True},
+    {"id": "keywords_researched", "category": "Marketing", "label": "Keywords / tags researched",         "required": False},
+    # Category: Launch
+    {"id": "platform_listing", "category": "Launch",     "label": "Listed on at least 1 sales platform",  "required": True},
+    {"id": "payment_tested",   "category": "Launch",     "label": "Checkout / payment link tested",       "required": True},
+    {"id": "delivery_confirmed", "category": "Launch",   "label": "Delivery & download confirmed working", "required": True},
+    {"id": "legal_reviewed",   "category": "Launch",     "label": "Refund policy / legal terms included", "required": False},
+]
+
+REQUIRED_IDS = {c["id"] for c in QUALITY_CHECKLIST if c["required"]}
+MIN_SCORE_TO_PUBLISH = 80  # percent
+
+@api_router.get("/projects/{project_id}/checklist")
+async def get_checklist(project_id: str):
+    """Get quality checklist state for a project"""
+    try:
+        if db is None:
+            return {"items": QUALITY_CHECKLIST, "checked": [], "score": 0, "ready": False}
+        doc = await db.project_checklists.find_one({"project_id": project_id}, {"_id": 0})
+        checked = doc.get("checked", []) if doc else []
+        # Auto-detect from product data
+        product = await db.products.find_one({"id": project_id}, {"_id": 0})
+        if product:
+            auto = []
+            if product.get("title"):          auto.append("title_set")
+            if len(product.get("description", "")) >= 150: auto.append("description_written")
+            if product.get("price"):          auto.append("price_set")
+            if product.get("cover_image"):    auto.append("cover_created")
+            if product.get("files") or product.get("content"): auto.append("files_generated")
+            if product.get("checkout_url") or product.get("gumroad_url"): auto.append("platform_listing")
+            # Merge auto-detected with manually checked
+            checked = list(set(checked) | set(auto))
+        total = len(QUALITY_CHECKLIST)
+        score = round(len(checked) / total * 100) if total else 0
+        required_met = all(r in checked for r in REQUIRED_IDS)
+        return {
+            "items": QUALITY_CHECKLIST,
+            "checked": checked,
+            "score": score,
+            "ready": score >= MIN_SCORE_TO_PUBLISH and required_met,
+            "min_score": MIN_SCORE_TO_PUBLISH,
+            "blocking": [c["label"] for c in QUALITY_CHECKLIST if c["required"] and c["id"] not in checked],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/projects/{project_id}/checklist")
+async def save_checklist(project_id: str, body: dict):
+    """Save quality checklist progress for a project"""
+    try:
+        checked = [str(i) for i in body.get("checked", []) if isinstance(i, str)]
+        valid_ids = {c["id"] for c in QUALITY_CHECKLIST}
+        checked = [i for i in checked if i in valid_ids]
+        if db is not None:
+            await db.project_checklists.update_one(
+                {"project_id": project_id},
+                {"$set": {"project_id": project_id, "checked": checked, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True,
+            )
+        total = len(QUALITY_CHECKLIST)
+        score = round(len(checked) / total * 100) if total else 0
+        required_met = all(r in checked for r in REQUIRED_IDS)
+        return {
+            "success": True,
+            "checked": checked,
+            "score": score,
+            "ready": score >= MIN_SCORE_TO_PUBLISH and required_met,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
