@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Header
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Header, Depends, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -48,7 +48,7 @@ from ai_services.gemini_manager import get_gemini_manager, initialize_gemini
 from ai_services.gemini_product_generator import get_gemini_generator
 from ai_services.auth_utils import (
     create_access_token, decode_token, hash_password, verify_password,
-    UserCreate, UserResponse, TokenResponse
+    UserCreate, UserResponse, TokenResponse, require_auth
 )
 
 # Import core system
@@ -339,6 +339,7 @@ class APIKeyInput(BaseModel):
     anthropic_key: Optional[str] = None
     dalle_key: Optional[str] = None
     sendgrid_key: Optional[str] = None
+    sendgrid_from_email: Optional[str] = None
     stripe_key: Optional[str] = None
     mongodb_url: Optional[str] = None
 
@@ -503,7 +504,7 @@ async def logout():
 
 # API Keys Management
 @api_router.post("/keys/store", response_model=APIKeyResponse)
-async def store_api_keys(keys: APIKeyInput):
+async def store_api_keys(keys: APIKeyInput, _auth: dict = Depends(require_auth)):
     """
     Store API keys from frontend
     These keys are encrypted and stored securely
@@ -553,7 +554,9 @@ async def get_keys_status():
         'anthropic_key',
         'dalle_key',
         'sendgrid_key',
+        'sendgrid_from_email',
         'stripe_key',
+        'stripe_webhook_secret',
         'gumroad_key',
         'gumroad_secret',
         'mongodb_url'
@@ -786,7 +789,7 @@ class FullProductGenerationResponse(BaseModel):
 
 
 @api_router.post("/ai/generate-full-product", response_model=FullProductGenerationResponse)
-async def generate_full_product(request: FullProductGenerationRequest):
+async def generate_full_product(request: FullProductGenerationRequest, _auth: dict = Depends(require_auth)):
     """Complete product generation workflow: concept -> description -> image -> save to DB"""
     try:
         # Step 1: Generate product description
@@ -911,7 +914,7 @@ async def get_dashboard_stats():
 
 # Products CRUD
 @api_router.post("/products", response_model=Product)
-async def create_product(product_input: ProductCreate):
+async def create_product(product_input: ProductCreate, _auth: dict = Depends(require_auth)):
     """Create a new product"""
     try:
         product = Product(**product_input.model_dump())
@@ -1102,7 +1105,7 @@ async def record_revenue_metric(metric: RevenueMetric):
 # ============ AI TEAM ENDPOINTS ============
 
 @api_router.post("/ai/scout-opportunities")
-async def scout_opportunities():
+async def scout_opportunities(_auth: dict = Depends(require_auth)):
     """Trigger Opportunity Scouting AI to find trending niches"""
     try:
         # Create task
@@ -1153,7 +1156,7 @@ class GenerateBookRequest(BaseModel):
     target_audience: str = "general"
 
 @api_router.post("/ai/generate-book")
-async def generate_book(request: GenerateBookRequest):
+async def generate_book(request: GenerateBookRequest, _auth: dict = Depends(require_auth)):
     """Generate an eBook using Book Writing AI"""
     try:
         # Create task
@@ -1220,7 +1223,7 @@ class GenerateCourseRequest(BaseModel):
     learning_objectives: Optional[List[str]] = None
 
 @api_router.post("/ai/generate-course")
-async def generate_course(request: GenerateCourseRequest):
+async def generate_course(request: GenerateCourseRequest, _auth: dict = Depends(require_auth)):
     """Generate a course using Course Creation AI"""
     try:
         # Create task
@@ -1415,7 +1418,7 @@ class GenerateSocialPostsRequest(BaseModel):
     num_posts: int = 5
 
 @api_router.post("/ai/generate-social-posts")
-async def generate_social_posts(request: GenerateSocialPostsRequest):
+async def generate_social_posts(request: GenerateSocialPostsRequest, _auth: dict = Depends(require_auth)):
     """Generate social media posts for a product"""
     try:
         # Get product
@@ -1448,7 +1451,7 @@ class CreateLaunchCampaignRequest(BaseModel):
     target_audience: str = "general"
 
 @api_router.post("/ai/create-launch-campaign")
-async def create_launch_campaign(request: CreateLaunchCampaignRequest):
+async def create_launch_campaign(request: CreateLaunchCampaignRequest, _auth: dict = Depends(require_auth)):
     """Create complete launch campaign with funnel and emails"""
     try:
         # Get product
@@ -1475,7 +1478,7 @@ async def create_launch_campaign(request: CreateLaunchCampaignRequest):
 
 
 @api_router.post("/ai/generate-affiliate-program")
-async def generate_affiliate_program():
+async def generate_affiliate_program(_auth: dict = Depends(require_auth)):
     """Generate affiliate program structure and recruitment materials"""
     try:
         # Get all products
@@ -1851,7 +1854,7 @@ async def get_system_health():
 # ============ AUTONOMOUS ENGINE ============
 
 @api_router.post("/autonomous/run-cycle")
-async def run_autonomous_cycle():
+async def run_autonomous_cycle(_auth: dict = Depends(require_auth)):
     """
     Run ONE complete autonomous cycle:
     Scout → Generate REAL product → Compliance → Publish → Market → Track
@@ -1875,7 +1878,7 @@ async def run_autonomous_cycle():
 
 
 @api_router.post("/autonomous/start-continuous")
-async def start_continuous_mode(products_per_day: int = 3, background_tasks: BackgroundTasks = None):
+async def start_continuous_mode(products_per_day: int = 3, background_tasks: BackgroundTasks = None, _auth: dict = Depends(require_auth)):
     """
     Start continuous autonomous mode - generates products 24/7
     
@@ -2008,7 +2011,7 @@ class LaunchProductRequest(BaseModel):
     generate_social: bool = True
 
 @api_router.post("/launch-product")
-async def launch_product_one_click(request: LaunchProductRequest):
+async def launch_product_one_click(request: LaunchProductRequest, _auth: dict = Depends(require_auth)):
     """
     ONE-CLICK LAUNCH: Full Autonomous Cycle
     
@@ -2161,7 +2164,7 @@ async def get_gumroad_sales(product_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/gumroad/publish")
-async def publish_to_gumroad(product_id: str):
+async def publish_to_gumroad(product_id: str, _auth: dict = Depends(require_auth)):
     """Publish an existing product to Gumroad"""
     try:
         # Get product from database
@@ -2458,7 +2461,9 @@ async def generate_youtube_shorts(request: YouTubeShortsRequest):
         # Save to database
         if db is not None:
             for short in shorts:
-                await db.social_content.insert_one(short)
+                short_doc = short.copy()
+                short_doc.pop('_id', None)
+                await db.social_content.insert_one(short_doc)
         
         return {
             "success": True,
@@ -2510,7 +2515,9 @@ async def create_social_campaign(request: SocialCampaignRequest):
         # Save campaign
         if db is not None:
             try:
-                await db.social_campaigns.insert_one(campaign)
+                campaign_doc = campaign.copy()
+                campaign_doc.pop('_id', None)
+                await db.social_campaigns.insert_one(campaign_doc)
             except Exception as db_error:
                 if not is_database_query_error(db_error):
                     raise
@@ -2653,7 +2660,7 @@ async def post_to_tiktok(content: Dict[str, Any]):
 
 
 @api_router.post("/social/post-instagram")
-async def post_to_instagram(content: Dict[str, Any]):
+async def post_to_instagram(content: Dict[str, Any], _auth: dict = Depends(require_auth)):
     """Post to Instagram (requires Graph API key)"""
     try:
         api_key = keys_manager.get_key('instagram_graph_api_key')
@@ -2669,7 +2676,7 @@ async def post_to_instagram(content: Dict[str, Any]):
 
 
 @api_router.post("/social/post-twitter")
-async def post_to_twitter(content: Dict[str, Any]):
+async def post_to_twitter(content: Dict[str, Any], _auth: dict = Depends(require_auth)):
     """Post to Twitter/X (requires API v2 keys)"""
     try:
         api_key = keys_manager.get_key('twitter_api_key')
@@ -2685,7 +2692,7 @@ async def post_to_twitter(content: Dict[str, Any]):
 
 
 @api_router.post("/social/post-linkedin")
-async def post_to_linkedin(content: Dict[str, Any]):
+async def post_to_linkedin(content: Dict[str, Any], _auth: dict = Depends(require_auth)):
     """Post to LinkedIn (requires Share API key)"""
     try:
         api_key = keys_manager.get_key('linkedin_api_key')
@@ -2701,7 +2708,7 @@ async def post_to_linkedin(content: Dict[str, Any]):
 
 
 @api_router.post("/social/post-youtube")
-async def post_to_youtube(content: Dict[str, Any]):
+async def post_to_youtube(content: Dict[str, Any], _auth: dict = Depends(require_auth)):
     """Post to YouTube (requires YouTube Data API key)"""
     try:
         api_key = keys_manager.get_key('youtube_api_key')
@@ -3678,12 +3685,16 @@ class NotificationResponse(BaseModel):
 
 
 @api_router.post("/email/send", response_model=EmailResponse)
-async def send_email(request: EmailRequest):
+async def send_email(request: EmailRequest, _auth: dict = Depends(require_auth)):
     """Send email using SendGrid"""
     try:
         sendgrid_key = keys_manager.get_key('sendgrid_key')
         if not sendgrid_key:
             raise HTTPException(status_code=400, detail="SendGrid API key not configured")
+
+        from_email = keys_manager.get_key('sendgrid_from_email')
+        if not from_email:
+            raise HTTPException(status_code=400, detail="SendGrid sender email not configured")
         
         # Import SendGrid SDK
         from sendgrid import SendGridAPIClient
@@ -3691,7 +3702,7 @@ async def send_email(request: EmailRequest):
         
         # Create email message
         message = Mail(
-            from_email='noreply@ceo-empire.com',  # Change to your verified sender
+            from_email=from_email,
             to_emails=request.to_email,
             subject=request.subject,
             html_content=request.body
@@ -3873,7 +3884,7 @@ async def mark_notification_read(notification_id: str):
 
 
 @api_router.post("/email/send-product-notification")
-async def send_product_notification(product_id: str, to_email: str):
+async def send_product_notification(product_id: str, to_email: str, _auth: dict = Depends(require_auth)):
     """Send email notification when product is ready (recommended for workflow)"""
     try:
         if db is None:
@@ -4034,21 +4045,42 @@ async def create_stripe_checkout(request: StripeCheckoutRequest):
 
 
 @api_router.post("/payments/webhook")
-async def handle_stripe_webhook(request: dict):
-    """Handle Stripe webhook events"""
+async def handle_stripe_webhook(request: Request):
+    """Handle Stripe webhook events with signature verification"""
     try:
         stripe_key = keys_manager.get_key('stripe_key')
         if not stripe_key:
             raise HTTPException(status_code=400, detail="Stripe API key not configured")
-        
-        event_type = request.get('type')
+
+        import stripe as stripe_lib
+        stripe_lib.api_key = stripe_key
+
+        # Verify webhook signature
+        payload = await request.body()
+        sig_header = request.headers.get('stripe-signature')
+        webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET') or keys_manager.get_key('stripe_webhook_secret')
+
+        if not webhook_secret:
+            raise HTTPException(status_code=500, detail="Stripe webhook secret not configured")
+        if not sig_header:
+            raise HTTPException(status_code=400, detail="Missing Stripe signature header")
+
+        try:
+            event = stripe_lib.Webhook.construct_event(payload, sig_header, webhook_secret)
+        except stripe_lib.error.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+
+        event_type = event['type']
         
         # Handle checkout.session.completed event
         if event_type == 'checkout.session.completed':
-            session_id = request.get('data', {}).get('object', {}).get('id')
-            payment_intent_id = request.get('data', {}).get('object', {}).get('payment_intent')
-            customer_email = request.get('data', {}).get('object', {}).get('customer_email')
-            metadata = request.get('data', {}).get('object', {}).get('metadata', {})
+            session_data = event['data']['object']
+            session_id = session_data.get('id')
+            payment_intent_id = session_data.get('payment_intent')
+            customer_email = session_data.get('customer_email')
+            metadata = session_data.get('metadata', {})
             
             # Update payment record
             if db is not None:
@@ -4071,7 +4103,7 @@ async def handle_stripe_webhook(request: dict):
                             "$inc": {
                                 "conversions": 1,
                                 "revenue": float(
-                                    request.get('data', {}).get('object', {}).get('amount_total', 0)
+                                    session_data.get('amount_total', 0)
                                 ) / 100
                             }
                         }

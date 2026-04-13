@@ -4,6 +4,26 @@ import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
+const BACKEND_KEY_TEMPLATES = [
+  { name: 'openai_key', label: 'OpenAI API Key', category: 'AI', description: 'Used for product ideation, copy, and AI generation.' },
+  { name: 'anthropic_key', label: 'Anthropic Claude Key', category: 'AI', description: 'Used for long-form analysis and strategy tasks.' },
+  { name: 'dalle_key', label: 'DALL-E API Key', category: 'AI', description: 'Used for image generation and visual assets.' },
+  { name: 'sendgrid_key', label: 'SendGrid API Key', category: 'Email', description: 'Used for transactional email and sequences.' },
+  { name: 'sendgrid_from_email', label: 'SendGrid Sender Email', category: 'Email', description: 'Verified sender address used in outgoing emails.' },
+  { name: 'stripe_key', label: 'Stripe Live Key', category: 'Platform', description: 'Used for payments and checkout sessions.' },
+  { name: 'stripe_webhook_secret', label: 'Stripe Webhook Secret', category: 'Platform', description: 'Used to verify Stripe webhook events and finalize completed payments.' },
+  { name: 'gumroad_key', label: 'Gumroad Access Token', category: 'Platform', description: 'Used to publish to Gumroad and sync sales data.' },
+  { name: 'gumroad_secret', label: 'Gumroad Secret', category: 'Platform', description: 'Legacy optional secret for older Gumroad auth flows.' },
+  { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database', description: 'Used for persistent storage and backend reconnects.' }
+];
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('authToken');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+};
+
 const SettingsPage = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -14,17 +34,6 @@ const SettingsPage = () => {
     templateName: 'openai_key',
     key: ''
   });
-
-  const backendKeyTemplates = [
-    { name: 'openai_key', label: 'OpenAI API Key', category: 'AI', description: 'Used for product ideation, copy, and AI generation.' },
-    { name: 'anthropic_key', label: 'Anthropic Claude Key', category: 'AI', description: 'Used for long-form analysis and strategy tasks.' },
-    { name: 'dalle_key', label: 'DALL-E API Key', category: 'AI', description: 'Used for image generation and visual assets.' },
-    { name: 'sendgrid_key', label: 'SendGrid API Key', category: 'Email', description: 'Used for transactional email and sequences.' },
-    { name: 'stripe_key', label: 'Stripe Live Key', category: 'Platform', description: 'Used for payments and checkout sessions.' },
-    { name: 'gumroad_key', label: 'Gumroad API Key', category: 'Platform', description: 'Used to publish and sync Gumroad products.' },
-    { name: 'gumroad_secret', label: 'Gumroad Secret', category: 'Platform', description: 'Required with the Gumroad API key for authentication.' },
-    { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database', description: 'Used for persistent storage and backend reconnects.' }
-  ];
 
   const categories = ['AI', 'Platform', 'Email', 'Social', 'Analytics', 'Database'];
 
@@ -56,7 +65,7 @@ const SettingsPage = () => {
   }, []);
 
   const apiKeys = useMemo(() => {
-    return backendKeyTemplates.map((template) => {
+    return BACKEND_KEY_TEMPLATES.map((template) => {
       const rawStatus = keyStatus[template.name] || 'Missing';
       const configured = String(rawStatus).includes('Configured') || String(rawStatus).includes('Connected');
 
@@ -84,9 +93,7 @@ const SettingsPage = () => {
     try {
       const response = await fetch(`${API}/api/keys/store`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           [formData.templateName]: formData.key
         })
@@ -247,7 +254,7 @@ const SettingsPage = () => {
                   value={formData.templateName}
                   onChange={(event) => setFormData({ ...formData, templateName: event.target.value })}
                 >
-                  {backendKeyTemplates.map((template) => (
+                  {BACKEND_KEY_TEMPLATES.map((template) => (
                     <option key={template.name} value={template.name}>
                       {template.label}
                     </option>
@@ -260,7 +267,7 @@ const SettingsPage = () => {
                   <label>Category</label>
                   <input
                     type="text"
-                    value={backendKeyTemplates.find((template) => template.name === formData.templateName)?.category || ''}
+                    value={BACKEND_KEY_TEMPLATES.find((template) => template.name === formData.templateName)?.category || ''}
                     disabled
                   />
                 </div>

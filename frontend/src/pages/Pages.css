@@ -1489,3 +1489,41 @@ tbody td {
   background-color: #10b981;
   color: white;
 }
+
+/* ---- Utility classes for new feature pages ---- */
+.error-banner {
+  padding: 14px 18px;
+  background: #dc354520;
+  color: #dc3545;
+  border: 1px solid #dc354560;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 60px 0;
+  color: #555;
+  font-size: 16px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #444;
+  color: #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-outline:hover {
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

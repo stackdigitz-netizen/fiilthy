@@ -86,6 +86,8 @@ Return as JSON:
             
             data = json.loads(response_text)
             posts = data.get("posts", [])
+            if not isinstance(posts, list) or len(posts) == 0:
+                return self._get_fallback_posts(product)
             
             # Add scheduling and IDs
             scheduled_posts = []

@@ -14,7 +14,11 @@ import {
   Settings,
   Lightbulb,
   LineChart,
-  Share2
+  Share2,
+  Shield,
+  Bot,
+  Radar,
+  FolderOpen
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -33,6 +37,10 @@ const Layout = ({ children }) => {
     { name: 'Analytics', href: '/analytics', icon: LineChart },
     { name: 'Automation', href: '/automation', icon: Settings },
     { name: 'Growth Lab', href: '/growth', icon: Lightbulb },
+    { name: 'Hunter', href: '/hunter', icon: Radar },
+    { name: 'Projects', href: '/projects', icon: FolderOpen },
+    { name: 'Atlas AI', href: '/assistant', icon: Bot },
+    { name: 'Vault', href: '/vault', icon: Shield },
     { name: 'Settings', href: '/settings', icon: Settings }
   ];
 
@@ -44,8 +52,8 @@ const Layout = ({ children }) => {
       <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <div className="logo-icon">AI</div>
-            {sidebarOpen && <div className="logo-text">Factory</div>}
+            <div className="logo-icon">F</div>
+            {sidebarOpen && <div className="logo-text">FiiLTHY<span style={{color: '#e040fb'}}>.ai</span></div>}
           </div>
           <button
             className="sidebar-toggle"
@@ -74,7 +82,7 @@ const Layout = ({ children }) => {
         </nav>
 
         <div className="sidebar-footer">
-          {sidebarOpen && <p className="text-xs text-gray-500">v5.0 Production</p>}
+          {sidebarOpen && <p className="text-xs text-gray-500">FiiLTHY.ai Digital Empire</p>}
         </div>
       </aside>
 
@@ -93,7 +101,7 @@ const Layout = ({ children }) => {
             <div className="user-badge">{user?.email || 'Signed in'}</div>
             <div className="status-badge">
               <span className="status-dot"></span>
-              Active
+              LIVE
             </div>
             <button className="logout-button" onClick={logout}>Logout</button>
           </div>

@@ -4,6 +4,13 @@ import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('authToken');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+};
+
 const readErrorMessage = async (response, fallbackMessage) => {
   try {
     const data = await response.json();
@@ -88,7 +95,7 @@ const ProductsPage = () => {
 
       const response = await fetch(`${API}/api/ai/generate-full-product`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           concept: concept.trim(),
           keywords: keywordArray,
@@ -134,7 +141,7 @@ const ProductsPage = () => {
     try {
       const response = await fetch(`${API}/api/payments/create-checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           product_id: productId,
           customer_email: checkoutEmail,

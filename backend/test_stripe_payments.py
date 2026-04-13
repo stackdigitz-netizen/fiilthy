@@ -1,119 +1,116 @@
-"""
-Test script for Stripe Payment endpoints
-"""
-import asyncio
-import httpx
-import json
+"""Integration tests for Stripe payment endpoints."""
 
-BASE_URL = "http://localhost:8000"
+import uuid
 
-async def test_create_checkout():
-    """Test creating a Stripe checkout session"""
-    print("=" * 60)
-    print("Testing POST /api/payments/create-checkout")
-    print("=" * 60)
-    payload = {
-        "product_id": "prod_12345",
-        "customer_email": "customer@example.com",
-        "success_url": "http://localhost:3000/success",
-        "cancel_url": "http://localhost:3000/cancel",
-        "quantity": 1
-    }
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.post(
-            f"{BASE_URL}/api/payments/create-checkout",
-            json=payload
-        )
-        print(f"Status: {response.status_code}")
-        print(f"Response: {json.dumps(response.json(), indent=2)}")
-    print()
+import pytest
+from fastapi.testclient import TestClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
-async def test_product_payment_stats():
-    """Test getting payment statistics for a product"""
-    print("=" * 60)
-    print("Testing GET /api/payments/{product_id}/stats")
-    print("=" * 60)
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{BASE_URL}/api/payments/prod_12345/stats"
-        )
-        print(f"Status: {response.status_code}")
-        print(f"Response: {json.dumps(response.json(), indent=2)}")
-    print()
+import server
 
-async def test_all_payment_stats():
-    """Test getting overall payment statistics"""
-    print("=" * 60)
-    print("Testing GET /api/payments/all-stats")
-    print("=" * 60)
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{BASE_URL}/api/payments/all-stats"
-        )
-        print(f"Status: {response.status_code}")
-        print(f"Response: {json.dumps(response.json(), indent=2)}")
-    print()
 
-async def test_webhook_simulation():
-    """Simulate Stripe webhook event"""
-    print("=" * 60)
-    print("Testing POST /api/payments/webhook (Simulated)")
-    print("=" * 60)
-    payload = {
-        "type": "checkout.session.completed",
-        "data": {
-            "object": {
-                "id": "cs_test_123456",
-                "payment_intent": "pi_test_123456",
-                "customer_email": "customer@example.com",
-                "amount_total": 2999,
-                "metadata": {
-                    "product_id": "prod_12345",
-                    "customer_email": "customer@example.com"
-                }
-            }
+@pytest.fixture
+def client():
+    mongo_url = server.resolve_mongo_url()
+    if mongo_url:
+        server.client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000, connectTimeoutMS=10000)
+        server.db = server.client[server.resolve_db_name()]
+
+    with TestClient(server.app) as test_client:
+        yield test_client
+
+    if server.client is not None:
+        server.client.close()
+
+
+def _create_user_and_headers(client: TestClient):
+    email = f"payments_{uuid.uuid4().hex[:10]}@example.com"
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": email,
+            "password": "auditpass123",
+            "first_name": "Payment",
+            "last_name": "Audit"
         }
-    }
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.post(
-            f"{BASE_URL}/api/payments/webhook",
-            json=payload
-        )
-        print(f"Status: {response.status_code}")
-        print(f"Response: {json.dumps(response.json(), indent=2)}")
-    print()
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    return email, {"Authorization": f"Bearer {payload['access_token']}"}
 
-async def main():
-    print("\n💳 Stripe Payment Endpoints Test Suite")
-    print("=" * 60)
-    print("Note: Server must be running on http://localhost:8000\n")
-    print("⚠️  Stripe API key must be configured for payment tests\n")
-    
-    try:
-        print("1️⃣  Testing checkout session creation...")
-        try:
-            await test_create_checkout()
-        except Exception as e:
-            print(f"⚠️  Skipped (likely no Stripe key or product): {str(e)[:100]}\n")
-        
-        print("2️⃣  Testing product payment stats...")
-        try:
-            await test_product_payment_stats()
-        except Exception as e:
-            print(f"⚠️  Skipped (likely no product payments): {str(e)[:100]}\n")
-        
-        print("3️⃣  Testing overall payment stats...")
-        await test_all_payment_stats()
-        
-        print("4️⃣  Testing webhook simulation...")
-        try:
-            await test_webhook_simulation()
-        except Exception as e:
-            print(f"⚠️  Skipped (webhook error): {str(e)[:100]}\n")
-        
-        print("✅ All payment tests completed!")
-    except Exception as e:
-        print(f"❌ Test failed: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+def _create_product(client: TestClient, headers: dict[str, str]):
+    response = client.post(
+        "/api/products",
+        headers=headers,
+        json={
+            "title": f"Checkout Test Product {uuid.uuid4().hex[:6]}",
+            "description": "Integration test product for Stripe checkout.",
+            "product_type": "ebook",
+            "price": 29.99,
+            "tags": ["test", "payments"]
+        }
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_create_checkout(client: TestClient):
+    stripe_key = server.keys_manager.get_key("stripe_key")
+    if not stripe_key:
+        pytest.skip("Stripe API key is not configured")
+
+    email, headers = _create_user_and_headers(client)
+    product = _create_product(client, headers)
+
+    response = client.post(
+        "/api/payments/create-checkout",
+        json={
+            "product_id": product["id"],
+            "customer_email": email,
+            "quantity": 1
+        }
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["payment_status"] == "pending"
+    assert payload["session_id"]
+    assert payload["checkout_url"].startswith("https://checkout.stripe.com/")
+
+
+def test_product_payment_stats(client: TestClient):
+    _, headers = _create_user_and_headers(client)
+    product = _create_product(client, headers)
+
+    response = client.get(f"/api/payments/{product['id']}/stats")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["product_id"] == product["id"]
+    assert payload["total_sales"] >= 0
+    assert payload["total_revenue"] >= 0
+
+
+def test_all_payment_stats(client: TestClient):
+    response = client.get("/api/payments/all-stats")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    for key in [
+        "total_revenue",
+        "total_sales",
+        "products_with_sales",
+        "average_order_value",
+        "today_revenue",
+        "today_sales"
+    ]:
+        assert key in payload
+
+
+def test_webhook_requires_valid_configuration(client: TestClient):
+    response = client.post("/api/payments/webhook", content=b"{}")
+
+    assert response.status_code in {400, 500}, response.text
+    payload = response.json()
+    assert "detail" in payload

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../config/api';
 import './AuthPages.css';
-
-const API_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://ceo-1-34jx.onrender.com');
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -61,8 +60,8 @@ export default function SignupPage() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>Emergent</h1>
-          <p>Create Your AI Factory Account</p>
+          <h1>FiiLTHY<span style={{color: '#e040fb'}}>.ai</span></h1>
+          <p>Create Your Digital Empire Account</p>
         </div>
 
         {error && <div className="auth-error">{error}</div>}

@@ -10,23 +10,48 @@ import base64
 import hashlib
 from pathlib import Path
 
+from config.runtime_secrets import get_runtime_secret
+
 
 class KeysManager:
     """Manages secure storage and retrieval of API keys"""
+
+    ENV_KEY_ALIASES = {
+        'openai_key': ['OPENAI_API_KEY', 'OPENAI_KEY'],
+        'anthropic_key': ['ANTHROPIC_API_KEY', 'ANTHROPIC_KEY'],
+        'dalle_key': ['DALLE_API_KEY', 'DALLE_KEY', 'OPENAI_API_KEY'],
+        'sendgrid_key': ['SENDGRID_API_KEY', 'SENDGRID_KEY'],
+        'sendgrid_from_email': ['SENDGRID_FROM_EMAIL', 'SENDGRID_VERIFIED_SENDER', 'DEFAULT_FROM_EMAIL'],
+        'stripe_key': ['STRIPE_SECRET_KEY', 'STRIPE_API_KEY', 'STRIPE_KEY'],
+        'stripe_webhook_secret': ['STRIPE_WEBHOOK_SECRET'],
+        'gumroad_key': ['GUMROAD_ACCESS_TOKEN', 'GUMROAD_TOKEN', 'GUMROAD_API_KEY', 'GUMROAD_KEY', 'GUMROAD_CLIENT_ID'],
+        'gumroad_secret': ['GUMROAD_SECRET', 'GUMROAD_CLIENT_SECRET'],
+        'mongodb_url': ['MONGO_URL', 'MONGO_URI', 'MONGODB_URL'],
+    }
     
     def __init__(self):
         # Use a derived key from environment or generate one
         master_key = os.environ.get('MASTER_KEY')
         if not master_key:
-            # Generate a key if not in environment (development only)
-            master_key = base64.urlsafe_b64encode(
-                hashlib.sha256(b'default-dev-key-change-in-production').digest()
-            ).decode()
+            master_key = get_runtime_secret(
+                'MASTER_KEY',
+                warning_message='MASTER_KEY not set.',
+                generator=lambda: Fernet.generate_key().decode(),
+                validator=self._is_valid_fernet_key
+            )
         
         self.cipher = Fernet(master_key.encode() if isinstance(master_key, str) else master_key)
         self.storage_path = Path(__file__).resolve().parent / '.secure_keys.json'
         self.keys_cache: Dict[str, str] = {}
         self._load_persisted_keys()
+
+    @staticmethod
+    def _is_valid_fernet_key(candidate: str) -> bool:
+        try:
+            Fernet(candidate.encode() if isinstance(candidate, str) else candidate)
+            return True
+        except ValueError:
+            return False
 
     def _read_persisted_keys(self) -> Dict[str, str]:
         if not self.storage_path.exists():
@@ -76,6 +101,7 @@ class KeysManager:
             'anthropic_key': '...',
             'dalle_key': '...',
             'sendgrid_key': '...',
+            'sendgrid_from_email': '...',
             'stripe_key': '...',
             'mongodb_url': '...'
         }
@@ -90,6 +116,8 @@ class KeysManager:
                 # Also cache in memory
                 self.keys_cache[key_name] = key_value
                 os.environ[key_name.upper()] = key_value
+                for alias in self.ENV_KEY_ALIASES.get(key_name, []):
+                    os.environ[alias] = key_value
 
         if stored_keys:
             self._write_persisted_keys(encrypted_keys)
@@ -102,12 +130,13 @@ class KeysManager:
         if key_name in self.keys_cache:
             return self.keys_cache[key_name]
         
-        # Try environment variable
-        env_name = key_name.upper()
-        env_value = os.environ.get(env_name)
-        if env_value:
-            self.keys_cache[key_name] = env_value
-            return env_value
+        # Try canonical and provider-specific environment variable aliases.
+        env_names = [key_name.upper(), *self.ENV_KEY_ALIASES.get(key_name, [])]
+        for env_name in env_names:
+            env_value = os.environ.get(env_name)
+            if env_value:
+                self.keys_cache[key_name] = env_value
+                return env_value
         
         return None
     

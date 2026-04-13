@@ -7,10 +7,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 
+from config.runtime_secrets import get_runtime_secret
+
 # Configuration
-SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+_jwt_secret = os.environ.get('JWT_SECRET_KEY')
+if not _jwt_secret:
+    _jwt_secret = get_runtime_secret(
+        'JWT_SECRET_KEY',
+        warning_message='JWT_SECRET_KEY not set.',
+        length=48
+    )
+SECRET_KEY = _jwt_secret
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 
 class TokenPayload(BaseModel):
@@ -99,3 +108,21 @@ def get_user_id_from_token(token: str) -> Optional[str]:
     if payload:
         return payload.get('sub')
     return None
+
+
+# --- FastAPI auth dependency ---
+from fastapi import Header, HTTPException
+
+
+async def require_auth(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    """FastAPI dependency that enforces Bearer token authentication.
+    Returns the decoded JWT payload or raises 401."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+    payload = decode_token(parts[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return payload

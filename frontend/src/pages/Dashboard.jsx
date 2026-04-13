@@ -102,8 +102,8 @@ const Dashboard = () => {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>📊 Factory Dashboard</h1>
-        <p>Real-time overview of your autonomous product development system</p>
+        <h1>Command Center</h1>
+        <p>Real-time overview of your digital empire</p>
       </div>
 
       {error && (
