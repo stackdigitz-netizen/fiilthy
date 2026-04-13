@@ -1,0 +1,26 @@
+[     455ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://developers.tiktok.com/app/7625836962934458369/pending#app-details:0
+[    2677ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284, userInfo:{"user_unique_id":"7627942162927470098","web_id":"7627942162927470098"} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0
+[    2678ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284, sdk is ready, version is 5.3.12_oversea, you can report now !!! @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0
+[    7443ms] [WARNING] RTC_AMBULANCE have non-native code:
+ RTCPeerConnection.prototype.addStream
+RTCPeerConnection.prototype.addTrack
+RTCPeerConnection.prototype.createDataChannel
+RTCPeerConnection.prototype.getLocalStreams
+RTCPeerConnection.prototype.getStats
+RTCPeerConnection.prototype.removeStream
+RTCPeerConnection.prototype.removeTrack
+RTCPeerConnection.prototype.setRemoteDescription
+RTCPeerConnection.prototype.addEventListener
+RTCPeerConnection.prototype.removeEventListener
+navigator.mediaDevices.getUserMedia
+console.error @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:12
+[    7582ms] [LOG] 11:31:33:163 %cAgora-SDK [DEBUG]: color: #64B5F6; browser ua:  Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    7582ms] [LOG] 11:31:33:164 %cAgora-SDK [INFO]: color: #1E88E5; font-weight: bold; browser info:  {name: Chrome, version: 147, os: Windows 10, osVersion: 10, browserVersion: 147.0.0.0} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    7583ms] [LOG] 11:31:33:164 %cAgora-SDK [INFO]: color: #1E88E5; font-weight: bold; browser compatibility:  {getDisplayMedia: true, getStreamFromExtension: true, supportUnifiedPlan: true, supportMinBitrate: true, supportSetRtpSenderParameters: true} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    8554ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284 token reset, new userInfo:{"user_unique_id":"7627942162927470098","web_id":"7627942162927470098"} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0
+[    8667ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://developers.tiktok.com/login:0
+[   26922ms] [LOG] %cAccountApi Version >>>>%O background: #222; color: #bada55 2.1.6-tiktok @ https://sf16-website.neutral.ttwstatic.com/obj/tiktok_web_static/developers/build/vendors/4293-bafa3972acef4b68-ce27d2c95f2da0f14f95cb08851d62a597491534.js:0
+[   26924ms] [LOG] >> lang en @ https://sf16-website.neutral.ttwstatic.com/obj/tiktok_web_static/developers/build/vendors/4293-bafa3972acef4b68-ce27d2c95f2da0f14f95cb08851d62a597491534.js:0
+[   26924ms] [LOG] >>> twv I18n isInitialized false @ https://sf16-website.neutral.ttwstatic.com/obj/tiktok_web_static/developers/build/vendors/4293-bafa3972acef4b68-ce27d2c95f2da0f14f95cb08851d62a597491534.js:0
+[   26930ms] [LOG] ===> verify_mnw3oakk_J7c92Wdl_5vpb_4B6y_BpDn_J5BjRpsGN6vX @ https://sf16-website.neutral.ttwstatic.com/obj/tiktok_web_static/developers/build/vendors/4293-bafa3972acef4b68-ce27d2c95f2da0f14f95cb08851d62a597491534.js:0
+[   28087ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284 token change, new userInfo:{"user_unique_id":"7625851654352716801","web_id":"7627942162927470098"} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0

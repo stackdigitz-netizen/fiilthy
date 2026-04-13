@@ -1,0 +1,23 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "FiiLTHY.ai" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Sign In to Your Digital Empire
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Email
+        - textbox "Email" [ref=e11]:
+          - /placeholder: your@email.com
+      - generic [ref=e12]:
+        - generic [ref=e13]: Password
+        - textbox "Password" [ref=e14]:
+          - /placeholder: ••••••••
+      - button "Sign In" [ref=e15] [cursor=pointer]
+    - paragraph [ref=e17]:
+      - text: Don't have an account?
+      - link "Sign Up" [ref=e18] [cursor=pointer]:
+        - /url: /signup
+  - link "Made with Emergent" [ref=e20] [cursor=pointer]:
+    - /url: https://app.emergent.sh/?utm_source=emergent-badge
+    - img [ref=e21]
+    - paragraph [ref=e24]: Made with Emergent
