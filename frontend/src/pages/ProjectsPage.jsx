@@ -142,6 +142,78 @@ const ChecklistPanel = ({ projectId, onScoreChange }) => {
   );
 };
 
+const buildVideoPromptPack = (product = {}) => {
+  const title = (product.title || 'Untitled Product').trim();
+  const productType = (product.product_type || 'digital product').replaceAll('_', ' ');
+  const description = (product.description || product.content || '').trim();
+  const shortDescription = description ? description.slice(0, 420) : `A premium ${productType} called ${title}.`;
+  const audience = product.target_audience || product.audience || 'buyers looking for a fast, credible transformation';
+  const price = product.price ? `priced at $${product.price}` : 'ready for launch';
+
+  return {
+    project_title: title,
+    product_type: productType,
+    generated_at: new Date().toISOString(),
+    prompts: [
+      {
+        id: 'hero-launch',
+        title: 'Hero Launch Ad',
+        goal: 'Create a cinematic reveal for the project offer',
+        platform: 'TikTok / Reels / Shorts',
+        duration_seconds: 20,
+        aspect_ratio: '9:16',
+        prompt: `Create a polished vertical launch ad for ${title}, a ${productType} ${price}. Show bold kinetic typography, premium product mockups, dramatic lighting, fast punch-in camera moves, clean studio background, luxury digital brand feel, persuasive pacing, and a strong final call to action. The audience is ${audience}. Highlight this offer: ${shortDescription}`,
+        voiceover: `Meet ${title}. This ${productType} is built for ${audience}. If you want a faster path to results, this is the offer to watch.`,
+        cta: `Get ${title} now.`,
+      },
+      {
+        id: 'problem-solution',
+        title: 'Problem To Solution',
+        goal: 'Frame the project as the answer to a painful problem',
+        platform: 'TikTok / Reels / Shorts',
+        duration_seconds: 25,
+        aspect_ratio: '9:16',
+        prompt: `Generate a short-form problem-solution video for ${title}. Open with frustration and chaos, then transition into clarity and momentum once the ${productType} appears. Use split screens, animated captions, mobile-first framing, high-energy motion graphics, before-and-after storytelling, and clear benefit-driven visuals. Base the message on: ${shortDescription}`,
+        voiceover: `Still stuck trying to solve this the hard way? ${title} turns the mess into a step-by-step system you can actually use.`,
+        cta: 'See how the system works.',
+      },
+      {
+        id: 'demo-walkthrough',
+        title: 'Feature Demo Walkthrough',
+        goal: 'Show what the project includes and how it feels to use',
+        platform: 'Product Demo / Sales Page Video',
+        duration_seconds: 35,
+        aspect_ratio: '16:9',
+        prompt: `Create a clean demo video for ${title}. Show close-up interface or product shots, scrolling pages, zoom-ins on key sections, highlight callouts, minimal premium UI overlays, subtle camera drift, soft editorial lighting, and smooth transitions. Make the viewer feel the value of this ${productType}. Include these details naturally: ${shortDescription}`,
+        voiceover: `Inside ${title}, you get a focused ${productType} designed to help ${audience}. Here is what makes it worth having.`,
+        cta: 'Watch the full breakdown and download.',
+      },
+      {
+        id: 'ugc-style',
+        title: 'UGC Testimonial Style',
+        goal: 'Make the project feel socially proven and relatable',
+        platform: 'TikTok / Instagram Reels',
+        duration_seconds: 18,
+        aspect_ratio: '9:16',
+        prompt: `Produce a realistic UGC-style promo for ${title}. Use handheld phone framing, authentic creator energy, quick jump cuts, caption overlays, natural room lighting, excited reactions, and direct-to-camera delivery. The creator should explain why this ${productType} stands out for ${audience}. Reference this core offer: ${shortDescription}`,
+        voiceover: `I was not expecting ${title} to be this useful. If you want something practical, fast, and actually clear, this is it.`,
+        cta: `Try ${title} today.`,
+      },
+      {
+        id: 'launch-countdown',
+        title: 'Offer Countdown Push',
+        goal: 'Drive urgency for launch or promotion windows',
+        platform: 'Ads / Retargeting Video',
+        duration_seconds: 15,
+        aspect_ratio: '9:16',
+        prompt: `Create a punchy countdown-style ad for ${title}. Use large countdown numerals, urgent text animation, product beauty shots, motion blur transitions, energetic soundtrack cues, and a final urgency card. Sell the value of the ${productType} while pushing action. Center the message around: ${shortDescription}`,
+        voiceover: `If ${title} is on your list, do not wait. This is your moment to grab the ${productType} and move now.`,
+        cta: 'Buy before the offer closes.',
+      },
+    ],
+  };
+};
+
 const ProjectsPage = () => {
   const [projects, setProjects] = useState([]);
   const [products, setProducts] = useState([]);
@@ -196,7 +268,7 @@ const ProjectsPage = () => {
     setProjectScores(prev => ({ ...prev, [projectId]: { score, ready } }));
   }, []);
 
-  const loadVideoPrompts = useCallback(async (projectId) => {
+  const loadVideoPrompts = useCallback(async (projectId, product) => {
     setPromptsLoading(true);
     setVideoPrompts(null);
     try {
@@ -204,9 +276,11 @@ const ProjectsPage = () => {
       if (r.ok) {
         const d = await r.json();
         setVideoPrompts(d.video_prompts || null);
+      } else if (product) {
+        setVideoPrompts(buildVideoPromptPack(product));
       }
     } catch (_) {
-      setVideoPrompts(null);
+      setVideoPrompts(product ? buildVideoPromptPack(product) : null);
     } finally {
       setPromptsLoading(false);
     }
@@ -217,12 +291,13 @@ const ProjectsPage = () => {
     setProjectDetail(null);
     setProjectTab('video');
     setCopiedPromptId(null);
-    loadVideoPrompts(projectId);
     try {
       const r = await fetch(`${API}/api/projects/${projectId}`);
       if (r.ok) {
         const d = await r.json();
-        setProjectDetail(d.project || d);
+        const detail = d.project || d;
+        setProjectDetail(detail);
+        loadVideoPrompts(projectId, detail.product || {});
       }
     } catch (_) {}
   };
