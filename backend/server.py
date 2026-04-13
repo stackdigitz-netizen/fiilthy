@@ -46,6 +46,10 @@ from ai_services.product_tiktok_integration import get_product_tiktok_integratio
 from ai_services.etsy_manager import get_etsy_manager
 from ai_services.gemini_manager import get_gemini_manager, initialize_gemini
 from ai_services.gemini_product_generator import get_gemini_generator
+from ai_services.auth_utils import (
+    create_access_token, decode_token, hash_password, verify_password,
+    UserCreate, UserResponse, TokenResponse
+)
 
 # Import core system
 from core.routes import router as core_router
@@ -192,6 +196,20 @@ automation_scheduler = None
 
 # Create the main app without a prefix
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://frontend-one-ashen-16.vercel.app",
+        "https://*.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -349,6 +367,150 @@ class APIKeyResponse(BaseModel):
 @api_router.get("/")
 async def root():
     return {"message": "CEO AI Empire - Autonomous Product Generation System"}
+
+
+# Authentication Routes
+@api_router.post("/auth/signup", response_model=TokenResponse)
+async def signup(user_data: UserCreate):
+    """Create a new user account"""
+    try:
+        if not db:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        
+        users_collection = db['users']
+        
+        # Check if user already exists
+        existing = await users_collection.find_one({"email": user_data.email})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user document
+        user_doc = {
+            "id": str(uuid.uuid4()),
+            "email": user_data.email,
+            "password_hash": hash_password(user_data.password),
+            "first_name": user_data.first_name,
+            "last_name": user_data.last_name,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        result = await users_collection.insert_one(user_doc)
+        user_doc["_id"] = result.inserted_id
+        
+        # Create token
+        token = create_access_token(user_doc["id"], user_data.email)
+        
+        user_response = UserResponse(
+            id=user_doc["id"],
+            email=user_doc["email"],
+            first_name=user_doc["first_name"],
+            last_name=user_doc["last_name"],
+            created_at=user_doc["created_at"],
+            updated_at=user_doc["updated_at"]
+        )
+        
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user=user_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class LoginRequest(BaseModel):
+    """Login request model"""
+    email: str
+    password: str
+
+
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login(login_data: LoginRequest):
+    """Login with email and password"""
+    try:
+        if not db:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        
+        users_collection = db['users']
+        user_doc = await users_collection.find_one({"email": login_data.email})
+        
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not verify_password(login_data.password, user_doc["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Create token
+        token = create_access_token(user_doc["id"], user_doc["email"])
+        
+        user_response = UserResponse(
+            id=user_doc["id"],
+            email=user_doc["email"],
+            first_name=user_doc.get("first_name"),
+            last_name=user_doc.get("last_name"),
+            created_at=user_doc["created_at"],
+            updated_at=user_doc["updated_at"]
+        )
+        
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user=user_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/auth/me", response_model=UserResponse)
+async def get_current_user(authorization: str = None):
+    """Get current authenticated user - reads from Authorization header"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        # Extract token from "Bearer <token>"
+        parts = authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authorization header")
+        
+        token = parts[1]
+        
+        # Decode token
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        
+        if not db:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        
+        users_collection = db['users']
+        user_doc = await users_collection.find_one({"id": user_id})
+        
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        return UserResponse(
+            id=user_doc["id"],
+            email=user_doc["email"],
+            first_name=user_doc.get("first_name"),
+            last_name=user_doc.get("last_name"),
+            created_at=user_doc["created_at"],
+            updated_at=user_doc["updated_at"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@api_router.post("/auth/logout")
+async def logout():
+    """Logout (client-side token removal)"""
+    return {"message": "Logged out successfully"}
 
 
 # API Keys Management
