@@ -1,0 +1,23 @@
+{
+  "builds": [
+    {
+      "src": "ceo/backend/server.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb",
+        "runtime": "python3.11"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "ceo/backend/server.py"
+    }
+  ],
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PORT": "8000"
+  },
+  "buildCommand": "pip install -r ceo/backend/requirements.txt"
+}
