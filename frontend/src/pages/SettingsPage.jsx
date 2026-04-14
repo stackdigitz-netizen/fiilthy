@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Plus, RefreshCw, X } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, Plus, RefreshCw, Save, X } from 'lucide-react';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -17,6 +17,64 @@ const BACKEND_KEY_TEMPLATES = [
   { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database', description: 'Used for persistent storage and backend reconnects.' }
 ];
 
+const SOCIAL_LINKS_STORAGE_KEY = 'fiilthy_social_accounts';
+
+const SOCIAL_ACCOUNT_CONFIG = [
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    description: 'Use this to keep your main Instagram profile handy and jump straight into account editing.',
+    placeholder: 'https://www.instagram.com/yourbrand/',
+    manageUrl: 'https://www.instagram.com/accounts/edit/',
+    composerUrl: 'https://www.instagram.com/create/style/'
+  },
+  {
+    id: 'tiktok',
+    label: 'TikTok',
+    description: 'Save your TikTok profile so product posting and profile updates are one click away.',
+    placeholder: 'https://www.tiktok.com/@yourbrand',
+    manageUrl: 'https://www.tiktok.com/upload',
+    composerUrl: 'https://www.tiktok.com/upload'
+  },
+  {
+    id: 'twitter',
+    label: 'X / Twitter',
+    description: 'Keep your X profile URL here for faster launches into profile edits and posting.',
+    placeholder: 'https://twitter.com/yourbrand',
+    manageUrl: 'https://twitter.com/settings/profile',
+    composerUrl: 'https://twitter.com/compose/post'
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    description: 'Store your LinkedIn profile or company page for direct access while publishing products.',
+    placeholder: 'https://www.linkedin.com/in/yourbrand/',
+    manageUrl: 'https://www.linkedin.com/feed/',
+    composerUrl: 'https://www.linkedin.com/feed/'
+  },
+  {
+    id: 'youtube',
+    label: 'YouTube',
+    description: 'Point this at your channel so Shorts, videos, and profile management stay in one workflow.',
+    placeholder: 'https://www.youtube.com/@yourbrand',
+    manageUrl: 'https://studio.youtube.com/',
+    composerUrl: 'https://studio.youtube.com/'
+  }
+];
+
+const normalizeUrl = (value) => {
+  const trimmedValue = String(value || '').trim();
+  if (!trimmedValue) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+};
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');
   const headers = { 'Content-Type': 'application/json' };
@@ -30,6 +88,8 @@ const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [keyStatus, setKeyStatus] = useState({});
+  const [socialLinks, setSocialLinks] = useState({});
+  const [socialStatus, setSocialStatus] = useState(null);
   const [formData, setFormData] = useState({
     templateName: 'openai_key',
     key: ''
@@ -64,6 +124,16 @@ const SettingsPage = () => {
     loadKeyStatus();
   }, []);
 
+  useEffect(() => {
+    try {
+      const savedLinks = JSON.parse(localStorage.getItem(SOCIAL_LINKS_STORAGE_KEY) || '{}');
+      setSocialLinks(savedLinks);
+    } catch (error) {
+      console.error('Failed to read saved social links:', error);
+      setSocialLinks({});
+    }
+  }, []);
+
   const apiKeys = useMemo(() => {
     return BACKEND_KEY_TEMPLATES.map((template) => {
       const rawStatus = keyStatus[template.name] || 'Missing';
@@ -76,6 +146,20 @@ const SettingsPage = () => {
       };
     });
   }, [keyStatus]);
+
+  const socialAccounts = useMemo(() => {
+    return SOCIAL_ACCOUNT_CONFIG.map((account) => {
+      const currentValue = socialLinks[account.id] || '';
+      const normalizedValue = normalizeUrl(currentValue);
+
+      return {
+        ...account,
+        value: currentValue,
+        normalizedValue,
+        connected: Boolean(normalizedValue)
+      };
+    });
+  }, [socialLinks]);
 
   const handleSaveKey = async (e) => {
     e.preventDefault();
@@ -123,7 +207,38 @@ const SettingsPage = () => {
   };
 
   const getCategoryCount = (category) => {
+    if (category === 'Social') {
+      return socialAccounts.filter((account) => account.connected).length;
+    }
+
     return apiKeys.filter((key) => key.category === category && key.configured).length;
+  };
+
+  const handleSaveSocialLinks = () => {
+    const normalizedLinks = SOCIAL_ACCOUNT_CONFIG.reduce((accumulator, account) => {
+      const normalizedValue = normalizeUrl(socialLinks[account.id]);
+
+      if (normalizedValue) {
+        accumulator[account.id] = normalizedValue;
+      }
+
+      return accumulator;
+    }, {});
+
+    localStorage.setItem(SOCIAL_LINKS_STORAGE_KEY, JSON.stringify(normalizedLinks));
+    setSocialLinks(normalizedLinks);
+    setSocialStatus({
+      type: 'success',
+      message: `Saved ${Object.keys(normalizedLinks).length} social account link${Object.keys(normalizedLinks).length === 1 ? '' : 's'} for quick access.`
+    });
+  };
+
+  const updateSocialLink = (platformId, value) => {
+    setSocialLinks((previousLinks) => ({
+      ...previousLinks,
+      [platformId]: value
+    }));
+    setSocialStatus(null);
   };
 
   return (
@@ -231,6 +346,85 @@ const SettingsPage = () => {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="content-section">
+        <div className="section-header">
+          <div>
+            <h2>Social Accounts & Quick Links</h2>
+            <p className="text-secondary" style={{ margin: '6px 0 0' }}>
+              Save the profile URLs you actually use so posting and account edits are always one click away.
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={handleSaveSocialLinks}>
+            <Save size={16} /> Save Social Links
+          </button>
+        </div>
+
+        {socialStatus && (
+          <div className={`alert ${socialStatus.type === 'success' ? 'alert-success' : 'alert-error'}`}>
+            {socialStatus.message}
+          </div>
+        )}
+
+        <div className="keys-table">
+          {socialAccounts.map((account) => (
+            <div key={account.id} className="key-row">
+              <div className="key-info">
+                <div className="key-name">
+                  <h4>{account.label}</h4>
+                  <span className="badge badge-social">Social</span>
+                </div>
+                <p className="text-secondary">{account.description}</p>
+                <div className="form-group" style={{ marginBottom: 0, marginTop: 12 }}>
+                  <label>{account.label} Profile URL</label>
+                  <input
+                    type="url"
+                    placeholder={account.placeholder}
+                    value={account.value}
+                    onChange={(event) => updateSocialLink(account.id, event.target.value)}
+                  />
+                </div>
+                {account.connected && (
+                  <div className="key-display" style={{ marginTop: 10 }}>
+                    <code>{account.normalizedValue}</code>
+                  </div>
+                )}
+              </div>
+
+              <div className="key-actions" style={{ alignItems: 'flex-end', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  className="btn btn-secondary btn-small"
+                  type="button"
+                  onClick={() => window.open(account.manageUrl, '_blank', 'noopener,noreferrer')}
+                >
+                  <ExternalLink size={14} /> Manage
+                </button>
+                <button
+                  className="btn btn-secondary btn-small"
+                  type="button"
+                  onClick={() => window.open(account.composerUrl, '_blank', 'noopener,noreferrer')}
+                >
+                  <ExternalLink size={14} /> Create Post
+                </button>
+                {account.connected && (
+                  <button
+                    className="btn btn-secondary btn-small"
+                    type="button"
+                    onClick={() => window.open(account.normalizedValue, '_blank', 'noopener,noreferrer')}
+                  >
+                    <ExternalLink size={14} /> Open Saved Link
+                  </button>
+                )}
+                <span className={`status-dot ${account.connected ? 'status-connected' : 'status-pending'}`}></span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-secondary" style={{ marginBottom: 0 }}>
+          Social links are stored in this browser so the app can launch the right profile and posting screens while you work.
+        </p>
       </div>
 
       {/* Modal for adding new key */}

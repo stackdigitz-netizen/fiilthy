@@ -510,11 +510,11 @@ async def get_content_calendar(product_id: str = Query(...)):
 # ============================================================================
 
 @router_v5.get("/analytics/dashboard")
-async def get_analytics_dashboard(request: AnalyticsDashboardRequest = Query(...)):
+async def get_analytics_dashboard(date_range: str = "last_30_days", group_by: str = "daily"):
     """Real-time analytics dashboard"""
     
     return {
-        "date_range": request.date_range,
+        "date_range": date_range,
         "metrics": {
             "total_views": 15234,
             "total_clicks": 1523,

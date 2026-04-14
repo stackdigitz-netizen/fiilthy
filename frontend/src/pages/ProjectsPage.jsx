@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FolderOpen, Download, Trash2, Plus, Globe, ChevronRight, RefreshCw, BookOpen, CheckSquare, Square, Clapperboard, Copy, AlertTriangle } from 'lucide-react';
+import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -384,6 +385,8 @@ const ProjectsPage = () => {
         <h1><FolderOpen size={28} style={{ marginRight: 8, verticalAlign: 'middle' }} />Projects & Publishing</h1>
         <p>Organize product files, download ZIPs, and get step-by-step publishing guides for every platform</p>
       </div>
+
+      <WorkflowGuide page="projects" />
 
       {error && <div className="error-banner">⚠️ {error}</div>}
 

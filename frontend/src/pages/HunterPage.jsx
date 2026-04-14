@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Radar, Users, Zap, TrendingUp, RefreshCw, Play, FastForward, ChevronRight } from 'lucide-react';
+import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -113,6 +114,8 @@ const HunterPage = () => {
         <h1><Radar size={28} style={{ marginRight: 8, verticalAlign: 'middle' }} />Opportunity Hunter</h1>
         <p>AI scouts trending niches and deploys specialized agent teams to execute them</p>
       </div>
+
+      <WorkflowGuide page="hunter" />
 
       {error && <div className="error-banner">⚠️ {error}</div>}
 

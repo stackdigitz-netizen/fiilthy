@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, AlertCircle, Check, Plus, Trash2, Share2, Calendar, TrendingUp } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Loader, AlertCircle, Check, Plus, Trash2, Share2, Calendar, TrendingUp, Copy, ExternalLink } from 'lucide-react';
+import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 export default function SocialMediaPage() {
+  const [searchParams] = useSearchParams();
   const [selectedProduct, setSelectedProduct] = useState('');
   const [products, setProducts] = useState([]);
   const [postsGenerated, setPostsGenerated] = useState([]);
@@ -19,6 +22,31 @@ export default function SocialMediaPage() {
     loadProducts();
     loadAnalytics();
   }, []);
+
+  // Auto-select product from URL param (e.g. /social-media?product=abc123)
+  useEffect(() => {
+    const pid = searchParams.get('product');
+    if (pid) setSelectedProduct(pid);
+  }, [searchParams]);
+
+  // Returns the correct URL to open each platform's post creation screen.
+  // For Twitter + LinkedIn we pre-fill the post text.
+  const getPlatformPostUrl = (platform, post) => {
+    const text = [post.caption, post.script, post.content, post.hook ? `Hook: ${post.hook}` : null]
+      .filter(Boolean)
+      .join('\n\n');
+    const encoded = encodeURIComponent(text.slice(0, 2000));
+    switch (platform) {
+      case 'twitter':  return `https://twitter.com/intent/tweet?text=${encoded}`;
+      case 'linkedin': return `https://www.linkedin.com/feed/?shareActive=true&text=${encoded}`;
+      case 'tiktok':   return 'https://www.tiktok.com/upload';
+      case 'instagram':return 'https://www.instagram.com/create/style/';
+      case 'youtube':  return 'https://studio.youtube.com/';
+      default:         return '#';
+    }
+  };
+
+  const platformLabel = (p) => ({ tiktok: 'TikTok', instagram: 'Instagram', twitter: 'X (Twitter)', linkedin: 'LinkedIn', youtube: 'YouTube Studio' }[p] || p);
 
   const loadProducts = async () => {
     try {
@@ -237,6 +265,8 @@ export default function SocialMediaPage() {
         <p>Generate and schedule posts across all major platforms</p>
       </div>
 
+      <WorkflowGuide page="social-media" hasGeneratedPosts={Object.keys(postsGenerated).length > 0} />
+
       {error && (
         <div className="alert alert-error">
           <AlertCircle size={18} />
@@ -427,15 +457,34 @@ export default function SocialMediaPage() {
                       )}
                     </div>
 
-                    <div className="post-actions">
+                    <div className="post-actions" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <button
                         className="icon-btn"
-                        title="Copy"
+                        title="Copy text"
                         type="button"
                         onClick={() => copyPostToClipboard(platform, post)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', fontSize: '12px' }}
                       >
-                        <Share2 size={14} />
+                        <Copy size={13} /> Copy
                       </button>
+                      <a
+                        href={getPlatformPostUrl(platform, post)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Open ${platformLabel(platform)} to post`}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 10px', fontSize: '12px', fontWeight: 600,
+                          backgroundColor: platform === 'tiktok' ? '#010101' :
+                            platform === 'instagram' ? '#c13584' :
+                            platform === 'twitter' ? '#1da1f2' :
+                            platform === 'linkedin' ? '#0a66c2' : '#ff0000',
+                          color: '#fff', borderRadius: '6px', textDecoration: 'none', whiteSpace: 'nowrap'
+                        }}
+                        onClick={() => copyPostToClipboard(platform, post)}
+                      >
+                        <ExternalLink size={12} /> Open {platformLabel(platform)} →
+                      </a>
                       <button
                         className="icon-btn"
                         title="Delete"

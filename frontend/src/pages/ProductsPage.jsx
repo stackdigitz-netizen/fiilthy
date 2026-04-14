@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Clock, TrendingUp, Zap, Image, Loader, Check, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Package, Clock, TrendingUp, Zap, Image, Loader, Check, X, Share2, FolderOpen, ExternalLink } from 'lucide-react';
+import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -48,6 +50,7 @@ const formatIntegrationError = (message) => {
 };
 
 const ProductsPage = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [generatedProduct, setGeneratedProduct] = useState(null);
@@ -171,6 +174,8 @@ const ProductsPage = () => {
         <h1>🚀 Product Factory</h1>
         <p>AI-powered product generation and management</p>
       </div>
+
+      <WorkflowGuide page="products" hasProducts={products.length > 0} />
 
       {/* AI Product Generator Section */}
       <div className="content-section" style={{ backgroundColor: '#f8f9ff', border: '2px solid #007bff' }}>
@@ -341,7 +346,7 @@ const ProductsPage = () => {
         </div>
       )}
 
-      {/* Products List */}
+      {/* Products Cards */}
       <div className="content-section">
         <div className="section-header">
           <h2>📦 All Products ({products.length})</h2>
@@ -367,50 +372,115 @@ const ProductsPage = () => {
             <p>No products yet. Generate your first product above!</p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Product</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Price Range</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Target Audience</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Created</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.slice(0, 10).map((product, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '12px' }}>
-                      <div>
-                        <strong>{product.title}</strong>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px' }}>{product.price_range || 'TBD'}</td>
-                    <td style={{ padding: '12px' }}>{product.target_audience || 'General'}</td>
-                    <td style={{ padding: '12px', fontSize: '12px', color: '#999' }}>
-                      {new Date(product.created_at).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <button
-                        onClick={() => setCheckoutModal(products[idx])}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
-                        💳 Sell
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+            {products.map((product, idx) => (
+              <div key={idx} style={{
+                border: '1px solid #e0e0e0',
+                borderRadius: '12px',
+                padding: '20px',
+                backgroundColor: '#fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                {/* Header */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>{product.title}</h3>
+                    <span style={{
+                      fontSize: '11px', fontWeight: 600, padding: '3px 8px',
+                      backgroundColor: '#e7f3ff', color: '#0066cc', borderRadius: '20px', whiteSpace: 'nowrap', flexShrink: 0
+                    }}>
+                      {(product.product_type || 'digital').replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  {product.description && (
+                    <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#666', lineHeight: 1.5 }}>
+                      {product.description.slice(0, 100)}{product.description.length > 100 ? '…' : ''}
+                    </p>
+                  )}
+                </div>
+
+                {/* Meta row */}
+                <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#888' }}>
+                  {product.price_range && (
+                    <span style={{ color: '#28a745', fontWeight: 700 }}>{product.price_range}</span>
+                  )}
+                  {product.target_audience && (
+                    <span>👤 {product.target_audience.slice(0, 40)}</span>
+                  )}
+                </div>
+
+                {/* Keywords */}
+                {product.keywords && product.keywords.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {product.keywords.slice(0, 4).map((kw, ki) => (
+                      <span key={ki} style={{
+                        fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                        backgroundColor: '#f0f0f0', color: '#555'
+                      }}>{kw}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
+                  {/* Row 1: Social + Project */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => navigate(`/social-media?product=${product.id}`)}
+                      style={{
+                        flex: 1, padding: '9px 8px', backgroundColor: '#7c3aed', color: 'white',
+                        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px',
+                        fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                      }}
+                    >
+                      <Share2 size={13} /> Create Posts
+                    </button>
+                    <button
+                      onClick={() => navigate('/projects')}
+                      style={{
+                        flex: 1, padding: '9px 8px', backgroundColor: '#0ea5e9', color: 'white',
+                        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px',
+                        fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                      }}
+                    >
+                      <FolderOpen size={13} /> Project Files
+                    </button>
+                  </div>
+                  {/* Row 2: Sell + Gumroad */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => setCheckoutModal(product)}
+                      style={{
+                        flex: 1, padding: '9px 8px', backgroundColor: '#16a34a', color: 'white',
+                        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px',
+                        fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                      }}
+                    >
+                      💳 Sell via Stripe
+                    </button>
+                    <a
+                      href="https://gumroad.com/products/new"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        flex: 1, padding: '9px 8px', backgroundColor: '#ff90e8', color: '#000',
+                        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px',
+                        fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      🛍️ List on Gumroad <ExternalLink size={11} />
+                    </a>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#bbb', textAlign: 'right' }}>
+                    {product.created_at ? new Date(product.created_at).toLocaleDateString() : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -168,6 +168,7 @@ class OpportunityHunter:
         
         # Save team
         await self.db.agent_teams.insert_one(team)
+        team.pop("_id", None)  # Remove MongoDB ObjectId before serialization
         
         # Update opportunity status
         await self.db.discovered_opportunities.update_one(

@@ -28,14 +28,16 @@ const AutomationControlModule = () => {
         const keysResponse = await fetch(`${API}/api/keys/status`);
         if (keysResponse.ok) {
           const keys = await keysResponse.json();
-          // Map keys to integration status
+          // api_keys_status is nested under keys.api_keys_status
+          const s = keys.api_keys_status || {};
+          const isOk = (val) => val && String(val).includes('[OK]');
           const integrationStatus = [
-            { name: 'Gumroad', status: keys.gumroad_token ? '✅ Connected' : '❌ Not connected', icon: '🛍️' },
-            { name: 'Shopify', status: keys.shopify_key ? '✅ Connected' : '❌ Not connected', icon: '🏪' },
-            { name: 'Stripe', status: keys.stripe_key ? '✅ Connected' : '❌ Not connected', icon: '💳' },
-            { name: 'TikTok API', status: keys.tiktok_key ? '✅ Connected' : '❌ Not connected', icon: '🎵' },
-            { name: 'Instagram', status: keys.instagram_key ? '✅ Connected' : '❌ Not connected', icon: '📷' },
-            { name: 'SendGrid', status: keys.sendgrid_key ? '✅ Connected' : '❌ Not connected', icon: '✉️' }
+            { name: 'Gumroad', status: isOk(s.gumroad_key) ? '✅ Connected' : '❌ Not connected', icon: '🛍️' },
+            { name: 'Stripe', status: isOk(s.stripe_key) ? '✅ Connected' : '❌ Not connected', icon: '💳' },
+            { name: 'SendGrid', status: isOk(s.sendgrid_key) ? '✅ Connected' : '❌ Not connected', icon: '✉️' },
+            { name: 'OpenAI', status: isOk(s.openai_key) ? '✅ Connected' : '❌ Not connected', icon: '🤖' },
+            { name: 'Anthropic', status: isOk(s.anthropic_key) ? '✅ Connected' : '❌ Not connected', icon: '🧠' },
+            { name: 'Database', status: isOk(s.database_connection) ? '✅ Connected' : '❌ Not connected', icon: '🗄️' }
           ];
           setIntegrations(integrationStatus);
         }
