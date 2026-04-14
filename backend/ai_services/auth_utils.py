@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from config.runtime_secrets import get_runtime_secret
 
 # Configuration
-_jwt_secret = os.environ.get('JWT_SECRET_KEY')
+_jwt_secret = os.environ.get('JWT_SECRET_KEY') or os.environ.get('JWT_SECRET')
 if not _jwt_secret:
     _jwt_secret = get_runtime_secret(
         'JWT_SECRET_KEY',

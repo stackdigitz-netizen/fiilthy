@@ -56,10 +56,14 @@ from ai_services.youtube_data_api import YouTubeDataAPI, get_youtube_api
 from ai_services.product_ranking_engine import ProductRankingEngine, get_product_ranking_engine
 from ai_services.multi_platform_ad_manager import MultiPlatformAdCampaignManager, get_campaign_manager
 from ai_services.revenue_attribution_engine import RevenueAttributionEngine
+from ai_services.post_scheduler import PostScheduler, get_post_scheduler
+from ai_services.quality_control import run_qc_check, ContentQualityControl
+from ai_services.real_video_generator import get_real_video_generator
 
 # Import core system
 from core.routes import router as core_router
 from core.routes_v5_production import router_v5
+from core.routes_v5_production_new import router as router_v5_new, init_services
 # Note: routes_v2 and routes_v3 are deprecated with missing dependencies
 # Using routes.py and routes_v4_production.py instead
 
@@ -195,6 +199,9 @@ project_manager = ProjectFileManager(db)
 publishing_guide = PublishingGuide()
 ai_assistant = AIAssistant(db)
 team_engine = AgentTeamEngine(db)
+
+# NEW: Post Scheduler and Quality Control
+post_scheduler = PostScheduler(db) if db is not None else None
 
 # Autonomous engine (initialized after db)
 autonomous_engine = None
@@ -5372,6 +5379,7 @@ async def record_sale(product_id: str,
 app.include_router(api_router)
 app.include_router(core_router, prefix="/api")
 app.include_router(router_v5)
+app.include_router(router_v5_new)  # NEW: Production factory routes
 
 # Configure CORS
 _cors_env = os.environ.get('CORS_ORIGINS', '')
@@ -5399,6 +5407,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_services():
+    """Initialize production factory services on startup"""
+    await init_services(db)
+    logger.info("✅ Production factory services initialized")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

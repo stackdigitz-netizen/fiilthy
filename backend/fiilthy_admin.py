@@ -10,7 +10,7 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict
 import stripe
-import jwt
+from ai_services.auth_utils import decode_token
 
 # Initialize blueprint
 admin_bp = Blueprint('fiilthy_admin', __name__, url_prefix='/api/fiilthy/admin')
@@ -31,14 +31,25 @@ def require_admin(f):
         token = request.headers.get('Authorization')
         if not token:
             return jsonify({'error': 'No token provided'}), 401
-        
+
         try:
-            token = token.split(' ')[1]
-            payload = jwt.decode(token, os.getenv('JWT_SECRET'), algorithms=['HS256'])
+            # Extract raw token from "Bearer <token>"
+            raw = token.split(' ')[1] if ' ' in token else token
+
+            # Use shared decode utility (handles runtime secret fallbacks)
+            payload = decode_token(raw)
+            if payload is None:
+                return jsonify({'error': 'Invalid or expired token'}), 401
+
+            # Accept explicit is_admin claim or check users_db for admin flag
             if not payload.get('is_admin'):
-                return jsonify({'error': 'Admin access required'}), 403
+                user_email = payload.get('email')
+                user_record = users_db.get(user_email) if user_email else None
+                if not user_record or not user_record.get('is_admin'):
+                    return jsonify({'error': 'Admin access required'}), 403
+
             request.user = payload
-        except:
+        except Exception:
             return jsonify({'error': 'Invalid token'}), 401
         
         return f(*args, **kwargs)
