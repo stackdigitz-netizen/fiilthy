@@ -49,7 +49,9 @@ def get_runtime_secret(
     stored_secrets = _read_runtime_secrets()
     stored_value = stored_secrets.get(secret_name)
     if stored_value and (validator is None or validator(stored_value)):
-        warnings.warn(f"{warning_message} Using persisted local fallback.")
+        # Only warn in development (not production)
+        if os.environ.get('ENVIRONMENT') != 'production':
+            warnings.warn(f"{warning_message} Using persisted local fallback.")
         return stored_value
 
     if generator is None:
@@ -58,5 +60,7 @@ def get_runtime_secret(
     generated_value = generator()
     stored_secrets[secret_name] = generated_value
     _write_runtime_secrets(stored_secrets)
-    warnings.warn(f"{warning_message} Generated and persisted a local fallback.")
+    # Only warn in development (not production)
+    if os.environ.get('ENVIRONMENT') != 'production':
+        warnings.warn(f"{warning_message} Generated and persisted a local fallback.")
     return generated_value

@@ -64,6 +64,9 @@ from ai_services.real_video_generator import get_real_video_generator
 from core.routes import router as core_router
 from core.routes_v5_production import router_v5
 from core.routes_v5_production_new import router as router_v5_new, init_services
+from core.routes_product_launch import router as router_product_launch
+from core.routes_quality import router as router_quality
+from ai_services.product_cycle_scheduler import get_cycle_scheduler
 # Note: routes_v2 and routes_v3 are deprecated with missing dependencies
 # Using routes.py and routes_v4_production.py instead
 
@@ -5380,6 +5383,8 @@ app.include_router(api_router)
 app.include_router(core_router, prefix="/api")
 app.include_router(router_v5)
 app.include_router(router_v5_new)  # NEW: Production factory routes
+app.include_router(router_product_launch)  # NEW: Product launch routes
+app.include_router(router_quality)          # NEW: Quality control routes
 
 # Configure CORS
 _cors_env = os.environ.get('CORS_ORIGINS', '')
@@ -5413,6 +5418,11 @@ async def startup_services():
     """Initialize production factory services on startup"""
     await init_services(db)
     logger.info("✅ Production factory services initialized")
+    # Start automated 2-hour product generation cycle
+    if db is not None:
+        scheduler = get_cycle_scheduler(db)
+        scheduler.start()
+        logger.info("✅ Product cycle scheduler started — generating 10+ products every 2 hours")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

@@ -8,7 +8,7 @@ import LandingPage from './pages/LandingPage';
 import LegalPage from './pages/LegalPage';
 import Dashboard from './pages/Dashboard';
 import OpportunitiesPage from './pages/OpportunitiesPage';
-import ProductsPage from './pages/ProductsPage';
+import ProductLaunchPage from './pages/ProductLaunchPage';
 import FiilthyPage from './pages/FiilthyPage';
 import BrandingPage from './pages/BrandingPage';
 import ContentPage from './pages/ContentPage';
@@ -23,6 +23,7 @@ import AssistantPage from './pages/AssistantPage';
 import HunterPage from './pages/HunterPage';
 import ProjectsPage from './pages/ProjectsPage';
 import FactoryDashboard from './components/FactoryDashboard';
+import QualityControlPage from './pages/QualityControlPage';
 import './App.css';
 
 function AppRoutes() {
@@ -49,7 +50,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/opportunities" element={<OpportunitiesPage />} />
-        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/products" element={<ProductLaunchPage />} />
         <Route path="/fiilthy" element={<FiilthyPage />} />
         <Route path="/branding" element={<BrandingPage />} />
         <Route path="/content" element={<ContentPage />} />
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="/hunter" element={<HunterPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/factory" element={<FactoryDashboard />} />
+        <Route path="/quality" element={<QualityControlPage />} />
         <Route path="/:page" element={<LegalPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

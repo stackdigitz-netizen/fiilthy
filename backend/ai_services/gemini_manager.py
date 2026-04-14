@@ -6,6 +6,11 @@ Centralized API key management for Google's Generative AI services
 import os
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
+import warnings
+
+# Suppress FutureWarning about google.generativeai deprecation
+warnings.filterwarnings('ignore', category=FutureWarning, module='google.generativeai')
+
 import google.generativeai as genai
 
 load_dotenv()

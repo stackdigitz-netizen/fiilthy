@@ -9,63 +9,48 @@ import {
   Search,
   Package,
   Palette,
-  TrendingUp,
   Zap,
   Settings,
-  Lightbulb,
   LineChart,
   Share2,
   Shield,
   Bot,
-  Radar,
-  FolderOpen,
-  ShoppingCart
+  ShoppingCart,
+  CheckSquare,
+  Rocket,
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
+    if (typeof window === 'undefined') return true;
     return window.innerWidth > 768;
   });
   const { user, logout } = useAuth();
 
   useEffect(() => {
-    const handleResize = () => {
-      setSidebarOpen(window.innerWidth > 768);
-    };
-
+    const handleResize = () => setSidebarOpen(window.innerWidth > 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-      setSidebarOpen(false);
-    }
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) setSidebarOpen(false);
   }, [location.pathname]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: BarChart3 },
-    { name: 'Opportunities', href: '/opportunities', icon: Search },
-    { name: 'Products', href: '/products', icon: Package },
-    { name: '🛒 Fiilthy Store', href: '/fiilthy', icon: ShoppingCart },
-    { name: 'Branding', href: '/branding', icon: Palette },
-    { name: 'Content', href: '/content', icon: TrendingUp },
-    { name: 'Sales', href: '/sales', icon: Zap },
-    { name: 'Social Media', href: '/social-media', icon: Share2 },
-    { name: 'Analytics', href: '/analytics', icon: LineChart },
-    { name: 'Automation', href: '/automation', icon: Settings },
-    { name: 'Growth Lab', href: '/growth', icon: Lightbulb },
-    { name: 'Factory', href: '/factory', icon: Package },
-    { name: 'Hunter', href: '/hunter', icon: Radar },
-    { name: 'Projects', href: '/projects', icon: FolderOpen },
-    { name: 'Atlas AI', href: '/assistant', icon: Bot },
-    { name: 'Vault', href: '/vault', icon: Shield },
-    { name: 'Settings', href: '/settings', icon: Settings }
+    { name: 'Dashboard',      href: '/',            icon: BarChart3 },
+    { name: 'Products',       href: '/products',    icon: Rocket },
+    { name: 'Quality Control',href: '/quality',     icon: CheckSquare },
+    { name: 'Store',          href: '/fiilthy',     icon: ShoppingCart },
+    { name: 'Social Media',   href: '/social-media',icon: Share2 },
+    { name: 'Analytics',      href: '/analytics',   icon: LineChart },
+    { name: 'Branding',       href: '/branding',    icon: Palette },
+    { name: 'Sales',          href: '/sales',       icon: Zap },
+    { name: 'Opportunities',  href: '/opportunities',icon: Search },
+    { name: 'Atlas AI',       href: '/assistant',   icon: Bot },
+    { name: 'Vault',          href: '/vault',       icon: Shield },
+    { name: 'Settings',       href: '/settings',    icon: Settings },
   ];
 
   const isActive = (href) => location.pathname === href;
