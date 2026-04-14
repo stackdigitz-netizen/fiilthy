@@ -3,22 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 import {
-  Menu,
-  X,
-  BarChart3,
-  Search,
-  Package,
-  Palette,
-  Zap,
-  Settings,
-  LineChart,
-  Share2,
-  Shield,
-  Bot,
-  ShoppingCart,
-  CheckSquare,
-  Rocket,
+  Menu, X, Cpu, Bell, LineChart, Shield, Settings,
 } from 'lucide-react';
+
+const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const Layout = ({ children }) => {
   const location = useLocation();
@@ -26,6 +14,7 @@ const Layout = ({ children }) => {
     if (typeof window === 'undefined') return true;
     return window.innerWidth > 768;
   });
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const { user, logout } = useAuth();
 
   useEffect(() => {
@@ -38,19 +27,31 @@ const Layout = ({ children }) => {
     if (typeof window !== 'undefined' && window.innerWidth <= 768) setSidebarOpen(false);
   }, [location.pathname]);
 
+  // Poll pending approvals for badge
+  useEffect(() => {
+    const fetchBadge = async () => {
+      try {
+        const t = localStorage.getItem('authToken');
+        const res = await fetch(`${API}/api/agents/metrics`, {
+          headers: t ? { Authorization: `Bearer ${t}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingApprovals(data.pending_approvals || 0);
+        }
+      } catch (_) { /* offline */ }
+    };
+    fetchBadge();
+    const interval = setInterval(fetchBadge, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const navigation = [
-    { name: 'Dashboard',      href: '/',            icon: BarChart3 },
-    { name: 'Products',       href: '/products',    icon: Rocket },
-    { name: 'Quality Control',href: '/quality',     icon: CheckSquare },
-    { name: 'Store',          href: '/fiilthy',     icon: ShoppingCart },
-    { name: 'Social Media',   href: '/social-media',icon: Share2 },
-    { name: 'Analytics',      href: '/analytics',   icon: LineChart },
-    { name: 'Branding',       href: '/branding',    icon: Palette },
-    { name: 'Sales',          href: '/sales',       icon: Zap },
-    { name: 'Opportunities',  href: '/opportunities',icon: Search },
-    { name: 'Atlas AI',       href: '/assistant',   icon: Bot },
-    { name: 'Vault',          href: '/vault',       icon: Shield },
-    { name: 'Settings',       href: '/settings',    icon: Settings },
+    { name: 'Command Center', href: '/',          icon: Cpu },
+    { name: 'Approvals',      href: '/approvals', icon: Bell,      badge: pendingApprovals },
+    { name: 'Analytics',      href: '/analytics', icon: LineChart },
+    { name: 'Vault',          href: '/vault',      icon: Shield },
+    { name: 'Settings',       href: '/settings',  icon: Settings },
   ];
 
   const isActive = (href) => location.pathname === href;
@@ -83,7 +84,19 @@ const Layout = ({ children }) => {
                 className={`nav-link ${active ? 'active' : ''}`}
                 title={!sidebarOpen ? item.name : ''}
               >
-                <Icon size={20} />
+                <span style={{ position: 'relative', display: 'flex' }}>
+                  <Icon size={20} />
+                  {item.badge > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -5, right: -6,
+                      background: '#ff6d00', color: '#000',
+                      fontSize: 9, fontWeight: 700, borderRadius: 8,
+                      padding: '1px 4px', lineHeight: '14px',
+                    }}>
+                      {item.badge}
+                    </span>
+                  )}
+                </span>
                 {sidebarOpen && <span>{item.name}</span>}
               </Link>
             );
