@@ -11,6 +11,7 @@ import ApprovalQueuePage from './pages/ApprovalQueuePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import VaultPage from './pages/VaultPage';
 import SettingsPage from './pages/SettingsPage';
+import StorePage from './pages/StorePage';
 import './App.css';
 
 function AppRoutes() {
@@ -24,6 +25,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/store" element={<StorePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/:page" element={<LegalPage />} />
@@ -36,6 +38,7 @@ function AppRoutes() {
     <Layout>
       <Routes>
         <Route path="/" element={<CommandCenterPage />} />
+        <Route path="/store" element={<StorePage />} />
         <Route path="/approvals" element={<ApprovalQueuePage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/vault" element={<VaultPage />} />

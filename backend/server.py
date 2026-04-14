@@ -67,6 +67,7 @@ from core.routes_v5_production_new import router as router_v5_new, init_services
 from core.routes_product_launch import router as router_product_launch
 from core.routes_quality import router as router_quality
 from core.routes_agents import router as router_agents
+from core.routes_store import router as router_store
 from ai_services.product_cycle_scheduler import get_cycle_scheduler
 from ai_services.agent_orchestrator import get_orchestrator
 # Note: routes_v2 and routes_v3 are deprecated with missing dependencies
@@ -4880,23 +4881,51 @@ async def handle_stripe_webhook(request: Request):
                         }
                     )
                 
-                # Send confirmation email
+                # Generate secure download token and email customer the real link
                 try:
+                    import secrets as _secrets
+                    download_token = _secrets.token_urlsafe(32)
+                    backend_url = os.environ.get("BACKEND_URL", "https://fiilthy-backend.railway.app")
+
+                    # Store download record with 7-day expiry
+                    await db.downloads.insert_one({
+                        "token": download_token,
+                        "product_id": product_id,
+                        "email": customer_email,
+                        "stripe_session_id": session_id,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+                        "download_count": 0,
+                    })
+
                     product = await db.products.find_one({"id": product_id}, {"_id": 0})
-                    if product:
-                        email_request = EmailRequest(
-                            to_email=customer_email,
-                            subject=f"✅ Order Confirmation: {product['title']}",
-                            body=f"""
-                                <h1>Thank You for Your Purchase!</h1>
-                                <p>Order confirmation for <strong>{product['title']}</strong></p>
-                                <p>You should receive an email with download/access link shortly.</p>
-                            """,
-                            template_type="general"
-                        )
-                        await send_email(email_request)
+                    product_title = product["title"] if product else "Your Product"
+                    download_url = f"{backend_url}/api/store/download/{download_token}"
+
+                    email_request = EmailRequest(
+                        to_email=customer_email,
+                        subject=f"\u2705 Your Download Is Ready: {product_title}",
+                        body=f"""
+                            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0d1117;color:#fff">
+                                <h1 style="color:#00e5ff">\U0001f389 Thank you for your purchase!</h1>
+                                <p>Your product <strong>{product_title}</strong> is ready to download.</p>
+                                <p style="margin:24px 0">
+                                    <a href="{download_url}"
+                                       style="background:#00e5ff;color:#000;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block">
+                                        \u2b07\ufe0f Download Your Product Now
+                                    </a>
+                                </p>
+                                <p style="color:#888;font-size:14px">This link expires in 7 days. Save it somewhere safe.</p>
+                                <p style="color:#888;font-size:14px">Questions? Reply to this email or contact support@fiilthy.ai</p>
+                                <hr style="border:1px solid #1a2a3a;margin:24px 0">
+                                <p style="color:#444;font-size:12px">FiiLTHY.ai | Automated AI Income Systems</p>
+                            </div>
+                        """,
+                        template_type="general"
+                    )
+                    await send_email(email_request)
                 except Exception as e:
-                    print(f"Warning: Failed to send confirmation email: {e}")
+                    print(f"Warning: Failed to send download email: {e}")
         
         return {"status": "received"}
         
@@ -5388,6 +5417,7 @@ app.include_router(router_v5_new)  # NEW: Production factory routes
 app.include_router(router_product_launch)  # NEW: Product launch routes
 app.include_router(router_quality)          # NEW: Quality control routes
 app.include_router(router_agents)           # NEW: Agent empire routes
+app.include_router(router_store)            # NEW: Public storefront + delivery
 
 # Configure CORS
 _cors_env = os.environ.get('CORS_ORIGINS', '')
