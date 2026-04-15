@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   FlaskConical, ShieldCheck, Megaphone, Package,
   Telescope, Link2, Play, Pause, Zap, Activity,
-  Clock, CheckCircle2, AlertCircle, Bell,
+  Clock, CheckCircle2, AlertCircle, Bell, TrendingUp,
 } from 'lucide-react';
 import './CommandCenter.css';
 
@@ -27,10 +27,19 @@ function ago(iso) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+function money(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
 export default function CommandCenterPage() {
   const [divisions, setDivisions] = useState({});
   const [metrics, setMetrics] = useState({});
   const [activity, setActivity] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState({});
 
@@ -41,9 +50,10 @@ export default function CommandCenterPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const [statusRes, activityRes] = await Promise.all([
+      const [statusRes, activityRes, pipelineRes] = await Promise.all([
         fetch(`${API}/api/agents/status`, { headers: authHeader() }),
         fetch(`${API}/api/agents/activity?limit=60`, { headers: authHeader() }),
+        fetch(`${API}/api/agents/pipeline?limit=6`, { headers: authHeader() }),
       ]);
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -53,6 +63,10 @@ export default function CommandCenterPage() {
       if (activityRes.ok) {
         const data = await activityRes.json();
         setActivity(data.activity || []);
+      }
+      if (pipelineRes.ok) {
+        const data = await pipelineRes.json();
+        setTopProducts(data.products || []);
       }
     } catch (err) {
       // backend offline
@@ -129,7 +143,11 @@ export default function CommandCenterPage() {
         {[
           { label: 'Products Today', value: metrics.products_today ?? 0 },
           { label: 'Approved Today', value: metrics.approved_today ?? 0 },
+          { label: 'Store Ready', value: metrics.store_ready ?? 0 },
+          { label: 'Published', value: metrics.published_products ?? 0 },
+          { label: 'Live Campaigns', value: metrics.live_campaigns ?? 0 },
           { label: 'Pending Approval', value: metrics.pending_approvals ?? 0, highlight: true },
+          { label: 'Revenue', value: money(metrics.revenue_total ?? 0) },
           { label: 'Total Products', value: metrics.total_products ?? 0 },
           { label: 'Opportunities', value: metrics.total_opportunities ?? 0 },
           { label: 'Affiliate Links', value: metrics.total_affiliate ?? 0 },
@@ -212,6 +230,47 @@ export default function CommandCenterPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="cc-panel">
+        <div className="cc-panel-header">
+          <TrendingUp size={14} />
+          TOP LIVE OFFERS
+          <span className="cc-feed-count">{topProducts.length} tracked</span>
+        </div>
+        {topProducts.length === 0 ? (
+          <div className="cc-feed-empty">No store-ready offers yet — launch the divisions above.</div>
+        ) : (
+          <div className="cc-product-list">
+            {topProducts.map((product) => (
+              <div key={product.id || product.title} className="cc-product-row">
+                <div className="cc-product-main">
+                  <div className="cc-product-title-row">
+                    <span className="cc-product-title">{product.title || 'Untitled product'}</span>
+                    {(product.featured || product.featured_candidate) && (
+                      <span className="cc-pill featured">Featured</span>
+                    )}
+                    <span className="cc-pill status">{product.status || 'draft'}</span>
+                  </div>
+                  <div className="cc-product-meta-row">
+                    <span>Launch {Math.round(product.launch_score || 0)}</span>
+                    <span>QC {Math.round(product.qc_score || 0)}</span>
+                    <span>{money(product.revenue || 0)}</span>
+                    <span>{product.campaign_status || 'campaign pending'}</span>
+                  </div>
+                </div>
+                <a
+                  className="cc-product-link"
+                  href={product.store_url || '/store'}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View Store
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Activity feed ── */}

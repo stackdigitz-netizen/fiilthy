@@ -12,6 +12,8 @@ from enum import Enum
 import httpx
 import logging
 
+from ai_services.gumroad_publisher import GumroadPublisher
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +51,29 @@ class MultiPlatformProductSync:
         self.tiktok_shop_shop_cipher = os.getenv("TIKTOK_SHOP_CIPHER")
         
         self.gumroad_token = os.getenv("GUMROAD_TOKEN")
+        self.etsy_default_taxonomy_id = os.getenv("ETSY_DEFAULT_TAXONOMY_ID")
+        self.gumroad_publisher = GumroadPublisher()
         
         self.sync_history = []
+
+    @staticmethod
+    def _price_amount(product: Dict[str, Any]) -> float:
+        try:
+            return round(float(product.get("price", 0) or 0), 2)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _error_from_response(response: httpx.Response) -> str:
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                if isinstance(payload.get("error"), dict):
+                    return payload["error"].get("message") or payload["error"].get("code") or str(payload)
+                return payload.get("message") or payload.get("detail") or str(payload)
+            return str(payload)
+        except ValueError:
+            return response.text or f"HTTP {response.status_code}"
     
     async def sync_product_to_all_platforms(self,
                                            product: Dict[str, Any],
@@ -252,19 +275,34 @@ class MultiPlatformProductSync:
         try:
             if not all([self.etsy_api_key, self.etsy_shop_id, self.etsy_access_token]):
                 return {"success": False, "error": "Etsy credentials not configured"}
+
+            taxonomy_id = product.get("etsy_taxonomy_id") or product.get("taxonomy_id") or self.etsy_default_taxonomy_id
+            if not taxonomy_id:
+                return {
+                    "success": False,
+                    "error": "Etsy listing requires ETSY_DEFAULT_TAXONOMY_ID or product.etsy_taxonomy_id",
+                    "platform": "etsy"
+                }
             
             async with httpx.AsyncClient() as client:
                 # Create or update listing
                 listing_data = {
-                    "title": product.get("title", "")[:255],
+                    "quantity": int(product.get("inventory", {}).get("etsy", product.get("quantity", 100) or 100)),
+                    "title": product.get("title", "")[:140],
                     "description": product.get("description", ""),
-                    "price": int(product.get("price", 0) * 100),  # In cents
-                    "quantity": product.get("inventory", {}).get("etsy", 100),
-                    "tags": product.get("tags", [])[:13],  # Etsy limit
-                    "category_id": product.get("etsy_category_id"),
-                    "shipping_template_id": product.get("etsy_shipping_template_id"),
-                    "sections_id": product.get("etsy_section_id")
+                    "price": f"{self._price_amount(product):.2f}",
+                    "who_made": product.get("etsy_who_made", "i_did"),
+                    "when_made": product.get("etsy_when_made", "made_to_order"),
+                    "taxonomy_id": int(taxonomy_id),
+                    "type": product.get("etsy_listing_type", "download"),
+                    "state": product.get("etsy_state", "draft"),
+                    "is_supply": bool(product.get("etsy_is_supply", False)),
+                    "should_auto_renew": bool(product.get("etsy_auto_renew", True)),
                 }
+
+                tags = [str(tag).strip() for tag in (product.get("tags") or []) if str(tag).strip()]
+                if tags:
+                    listing_data["tags"] = tags[:13]
                 
                 # Upload images
                 images = []
@@ -292,6 +330,13 @@ class MultiPlatformProductSync:
                         "url": f"https://www.etsy.com/listing/{data.get('listing_id')}",
                         "status": "published"
                     }
+
+                return {
+                    "success": False,
+                    "platform": "etsy",
+                    "error": self._error_from_response(response),
+                    "status_code": response.status_code,
+                }
         
         except Exception as e:
             logger.error(f"Etsy sync failed: {str(e)}")
@@ -350,6 +395,13 @@ class MultiPlatformProductSync:
                         "url": f"{store_url}/admin/products/{product_id}",
                         "status": "created"
                     }
+
+                return {
+                    "success": False,
+                    "platform": "shopify",
+                    "error": self._error_from_response(response),
+                    "status_code": response.status_code,
+                }
         
         except Exception as e:
             logger.error(f"Shopify sync failed: {str(e)}")
@@ -419,6 +471,13 @@ class MultiPlatformProductSync:
                         "url": f"https://www.tiktokshop.com/product/{data.get('product_id')}",
                         "status": "published"
                     }
+
+                return {
+                    "success": False,
+                    "platform": "tiktok_shop",
+                    "error": self._error_from_response(response),
+                    "status_code": response.status_code,
+                }
         
         except Exception as e:
             logger.error(f"TikTok Shop sync failed: {str(e)}")
@@ -431,34 +490,26 @@ class MultiPlatformProductSync:
         
         try:
             if not self.gumroad_token:
-                return {"success": False, "error": "Gumroad token not configured"}
-            
-            async with httpx.AsyncClient() as client:
-                product_data = {
-                    "name": product.get("title", ""),
-                    "description": product.get("description", ""),
-                    "price": product.get("price", 0),
-                    "currency": product.get("currency", "usd"),
-                    "can_gift": True,
-                    "shown_on_profile": True
-                }
-                
-                response = await client.post(
-                    "https://api.gumroad.com/v2/products",
-                    data=product_data,
-                    params={"access_token": self.gumroad_token}
-                )
-                
-                if response.status_code in [200, 201]:
-                    data = response.json()
-                    product_id = data.get("product", {}).get("id")
-                    return {
-                        "success": True,
-                        "platform": "gumroad",
-                        "product_id": product_id,
-                        "url": f"https://gumroad.com/l/{product_id}",
-                        "status": "published"
-                    }
+                return {"success": False, "error": "Gumroad token not configured", "platform": "gumroad"}
+
+            if (product.get("product_type") or "").lower() == "course":
+                listing = await self.gumroad_publisher.publish_course(product)
+            else:
+                listing = await self.gumroad_publisher.publish_ebook(product)
+
+            if not listing.get("success"):
+                return {"success": False, "error": listing.get("error", "Gumroad draft creation failed"), "platform": "gumroad"}
+
+            return {
+                "success": True,
+                "platform": "gumroad",
+                "url": listing.get("dashboard_url"),
+                "status": "manual_required",
+                "integration_type": "manual",
+                "live": False,
+                "instructions": listing.get("instructions", []),
+                "product_template": listing.get("product_template", {}),
+            }
         
         except Exception as e:
             logger.error(f"Gumroad sync failed: {str(e)}")

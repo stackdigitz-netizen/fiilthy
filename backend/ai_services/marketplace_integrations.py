@@ -7,11 +7,16 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import random
 
+from ai_services.gumroad_publisher import GumroadPublisher
+from ai_services.multi_platform_product_sync import MultiPlatformProductSync
+
 class MarketplaceIntegrations:
     def __init__(self):
         self.supported_marketplaces = [
             "gumroad", "shopify", "amazon_kdp", "etsy", "udemy"
         ]
+        self.sync_manager = MultiPlatformProductSync()
+        self.gumroad_publisher = GumroadPublisher()
     
     async def publish_to_marketplace(self, 
                                     product: Dict[str, Any], 
@@ -45,36 +50,52 @@ class MarketplaceIntegrations:
             return await self._publish_to_udemy(product, credentials)
     
     async def _publish_to_gumroad(self, product: Dict[str, Any], credentials: Optional[Dict]) -> Dict[str, Any]:
-        """Publish to Gumroad (mock implementation)"""
-        await asyncio.sleep(0.5)  # Simulate API call
-        
-        listing_id = f"gum-{random.randint(100000, 999999)}"
+        """Prepare a Gumroad listing handoff using the real Gumroad helper."""
+        if (product.get("product_type") or "").lower() == "course":
+            listing = await self.gumroad_publisher.publish_course(product)
+        else:
+            listing = await self.gumroad_publisher.publish_ebook(product)
+
+        if not listing.get("success"):
+            return {
+                "marketplace": "gumroad",
+                "status": "error",
+                "reason": listing.get("error", "Gumroad configuration missing")
+            }
+
         return {
             "marketplace": "gumroad",
-            "listing_id": listing_id,
-            "listing_url": f"https://gumroad.com/l/{listing_id}",
-            "status": "published",
+            "listing_id": None,
+            "listing_url": listing.get("dashboard_url"),
+            "status": "manual_required",
             "published_at": datetime.now(timezone.utc).isoformat(),
             "product_id": product.get("id"),
             "price": product.get("price", 0),
-            "integration_type": "mock" if not credentials else "live"
+            "integration_type": "manual",
+            "instructions": listing.get("instructions", []),
+            "product_template": listing.get("product_template", {}),
         }
     
     async def _publish_to_shopify(self, product: Dict[str, Any], credentials: Optional[Dict]) -> Dict[str, Any]:
-        """Publish to Shopify (mock implementation)"""
-        await asyncio.sleep(0.5)
-        
-        listing_id = f"shopify-{random.randint(100000, 999999)}"
+        """Publish to Shopify using the live product sync service."""
+        result = await self.sync_manager._sync_to_shopify(product)
+        if not result.get("success"):
+            return {
+                "marketplace": "shopify",
+                "status": "error",
+                "reason": result.get("error", "Shopify publish failed")
+            }
+
         return {
             "marketplace": "shopify",
-            "listing_id": listing_id,
-            "listing_url": f"https://yourstore.myshopify.com/products/{listing_id}",
-            "status": "published",
+            "listing_id": result.get("product_id"),
+            "listing_url": result.get("url"),
+            "status": result.get("status", "published"),
             "published_at": datetime.now(timezone.utc).isoformat(),
             "product_id": product.get("id"),
             "price": product.get("price", 0),
-            "inventory": "unlimited",
-            "integration_type": "mock" if not credentials else "live"
+            "inventory": product.get("inventory", {}).get("shopify", "unlimited"),
+            "integration_type": "live"
         }
     
     async def _publish_to_amazon_kdp(self, product: Dict[str, Any], credentials: Optional[Dict]) -> Dict[str, Any]:
@@ -102,27 +123,42 @@ class MarketplaceIntegrations:
         }
     
     async def _publish_to_etsy(self, product: Dict[str, Any], credentials: Optional[Dict]) -> Dict[str, Any]:
-        """Publish to Etsy (mock implementation)"""
-        await asyncio.sleep(0.5)
-        
-        if product.get("product_type") not in ["template", "planner", "digital"]:
+        """Publish to Etsy using the live product sync service."""
+        if (product.get("product_type") or "").lower() not in {
+            "template",
+            "planner",
+            "digital",
+            "ebook",
+            "guide",
+            "workbook",
+            "toolkit",
+            "spreadsheet",
+            "checklist",
+        }:
             return {
                 "marketplace": "etsy",
                 "status": "rejected",
                 "reason": "Product type not suitable for Etsy digital downloads"
             }
-        
-        listing_id = f"etsy-{random.randint(1000000, 9999999)}"
+
+        result = await self.sync_manager._sync_to_etsy(product)
+        if not result.get("success"):
+            return {
+                "marketplace": "etsy",
+                "status": "error",
+                "reason": result.get("error", "Etsy publish failed")
+            }
+
         return {
             "marketplace": "etsy",
-            "listing_id": listing_id,
-            "listing_url": f"https://etsy.com/listing/{listing_id}",
-            "status": "published",
+            "listing_id": result.get("listing_id"),
+            "listing_url": result.get("url"),
+            "status": result.get("status", "published"),
             "published_at": datetime.now(timezone.utc).isoformat(),
             "product_id": product.get("id"),
             "price": product.get("price", 0),
             "category": "digital_downloads",
-            "integration_type": "mock" if not credentials else "live"
+            "integration_type": "live"
         }
     
     async def _publish_to_udemy(self, product: Dict[str, Any], credentials: Optional[Dict]) -> Dict[str, Any]:

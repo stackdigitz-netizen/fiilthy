@@ -60,6 +60,14 @@ class MultiPlatformAdCampaignManager:
             AdPlatform.AMAZON_ADS: AmazonAdsManager(),
             AdPlatform.YOUTUBE_ADS: YouTubeAdsManager()
         }
+
+    @staticmethod
+    def _resolve_platform(platform: str) -> Optional[AdPlatform]:
+        """Resolve a platform string to its enum value."""
+        try:
+            return AdPlatform(platform.lower())
+        except ValueError:
+            return None
     
     async def create_campaign(self,
                               product_id: str,
@@ -84,7 +92,7 @@ class MultiPlatformAdCampaignManager:
         """
         
         try:
-            if not self.db:
+            if self.db is None:
                 return {"error": "Database not configured"}
             
             # Get product
@@ -126,9 +134,18 @@ class MultiPlatformAdCampaignManager:
             
             # Launch campaigns on each platform
             results = {}
+            successful_platforms = 0
             for platform in platforms:
                 try:
-                    platform_enum = AdPlatform[platform.upper().replace("_", "")]
+                    platform_enum = self._resolve_platform(platform)
+                    if platform_enum is None:
+                        results[platform] = {
+                            "status": "error",
+                            "platform": platform,
+                            "message": f"Platform '{platform}' is not supported"
+                        }
+                        continue
+
                     manager = self.platform_managers.get(platform_enum)
                     
                     if not manager:
@@ -146,19 +163,31 @@ class MultiPlatformAdCampaignManager:
                     
                     results[platform] = platform_result
                     campaign_record["platform_campaigns"][platform] = platform_result
+                    if platform_result.get("status") not in {"error", "failed"}:
+                        successful_platforms += 1
                 
                 except Exception as e:
                     logger.error(f"Failed to create campaign on {platform}: {str(e)}")
                     results[platform] = {"status": "error", "message": str(e)}
+
+            campaign_record["status"] = (
+                CampaignStatus.PENDING.value if successful_platforms else CampaignStatus.FAILED.value
+            )
             
             # Save campaign
             await self.db.campaigns.insert_one(campaign_record)
             
             return {
                 "campaign_id": campaign_id,
-                "status": "created",
+                "status": "created" if successful_platforms else "failed",
                 "product_id": product_id,
                 "platforms_created": results,
+                "successful_platforms": successful_platforms,
+                "failed_platforms": [
+                    platform
+                    for platform, result in results.items()
+                    if result.get("status") in {"error", "failed"}
+                ],
                 "total_budget": budget,
                 "daily_budget": daily_budget
             }
@@ -171,7 +200,7 @@ class MultiPlatformAdCampaignManager:
         """Get performance metrics for a campaign"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return {"error": "Database not configured"}
             
             campaign = await self.db.campaigns.find_one(
@@ -191,7 +220,10 @@ class MultiPlatformAdCampaignManager:
             
             for platform, platform_campaign in campaign.get("platform_campaigns", {}).items():
                 try:
-                    platform_enum = AdPlatform[platform.upper().replace("_", "")]
+                    platform_enum = self._resolve_platform(platform)
+                    if platform_enum is None:
+                        continue
+
                     manager = self.platform_managers.get(platform_enum)
                     
                     if manager and "platform_id" in platform_campaign:
@@ -256,7 +288,7 @@ class MultiPlatformAdCampaignManager:
         """Pause a campaign across all platforms"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return {"error": "Database not configured"}
             
             campaign = await self.db.campaigns.find_one(
@@ -272,7 +304,11 @@ class MultiPlatformAdCampaignManager:
             # Pause on each platform
             for platform, platform_campaign in campaign.get("platform_campaigns", {}).items():
                 try:
-                    platform_enum = AdPlatform[platform.upper().replace("_", "")]
+                    platform_enum = self._resolve_platform(platform)
+                    if platform_enum is None:
+                        results[platform] = {"status": "error", "message": f"Unknown platform: {platform}"}
+                        continue
+
                     manager = self.platform_managers.get(platform_enum)
                     
                     if manager and "platform_id" in platform_campaign:
@@ -303,7 +339,7 @@ class MultiPlatformAdCampaignManager:
         """Optimize campaign performance by adjusting bids/budgets"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return {"error": "Database not configured"}
             
             performance = await self.get_campaign_performance(campaign_id)
@@ -374,7 +410,7 @@ class MultiPlatformAdCampaignManager:
         """List campaigns"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return []
             
             query = {}
@@ -465,7 +501,57 @@ class MultiPlatformAdCampaignManager:
 # Platform-specific managers
 
 
-class GoogleAdsManager:
+class BaseHttpPlatformManager:
+    """Shared helpers for live platform integrations."""
+
+    async def _request(self,
+                       method: str,
+                       url: str,
+                       *,
+                       headers: Optional[Dict[str, str]] = None,
+                       params: Optional[Dict[str, Any]] = None,
+                       data: Optional[Dict[str, Any]] = None,
+                       json_body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                data=data,
+                json=json_body,
+            ) as response:
+                text = await response.text()
+                payload: Dict[str, Any]
+                try:
+                    payload = json.loads(text) if text else {}
+                except json.JSONDecodeError:
+                    payload = {"raw": text}
+
+                if response.status >= 400:
+                    error_message = payload.get("error", {}).get("message") if isinstance(payload, dict) else None
+                    if not error_message:
+                        error_message = payload.get("message") if isinstance(payload, dict) else None
+                    raise RuntimeError(error_message or f"HTTP {response.status}: {text}")
+
+                return payload
+
+    @staticmethod
+    def _missing_config(platform: str, missing_fields: List[str]) -> Dict[str, Any]:
+        return {
+            "status": "error",
+            "platform": platform,
+            "live": False,
+            "message": f"Missing required configuration: {', '.join(missing_fields)}"
+        }
+
+    @staticmethod
+    def _minor_units(amount: float) -> int:
+        return max(int(round(float(amount or 0) * 100)), 100)
+
+
+class GoogleAdsManager(BaseHttpPlatformManager):
     """Google Ads API interface"""
     
     async def create_campaign(self, **kwargs) -> Dict[str, Any]:
@@ -492,50 +578,295 @@ class GoogleAdsManager:
         return {"status": "paused"}
 
 
-class FacebookAdsManager:
+class FacebookAdsManager(BaseHttpPlatformManager):
     """Facebook Ads API interface"""
+
+    def __init__(self):
+        self.access_token = os.getenv("FACEBOOK_ADS_ACCESS_TOKEN") or os.getenv("META_ACCESS_TOKEN")
+        self.ad_account_id = os.getenv("FACEBOOK_ADS_ACCOUNT_ID") or os.getenv("META_AD_ACCOUNT_ID")
+        self.page_id = os.getenv("FACEBOOK_PAGE_ID") or os.getenv("META_PAGE_ID")
+        self.instagram_actor_id = os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID")
+        self.graph_version = os.getenv("META_GRAPH_VERSION", "v20.0")
+
+    def _store_url(self, product: Dict[str, Any]) -> str:
+        return (
+            product.get("store_url")
+            or product.get("product_url")
+            or f"{os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')}/store"
+        )
+
+    def _build_targeting(self, target_audience: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        audience = target_audience or {}
+        targeting = {
+            "geo_locations": {"countries": audience.get("countries") or ["US"]},
+            "age_min": int(audience.get("age_min") or 18),
+            "age_max": int(audience.get("age_max") or 65),
+        }
+
+        genders = audience.get("genders") or []
+        if genders:
+            gender_map = {"male": 1, "female": 2}
+            targeting["genders"] = [gender_map[g] for g in genders if g in gender_map]
+
+        return targeting
+
+    def _build_story_spec(self, product: Dict[str, Any], ad_creative: Dict[str, Any]) -> Dict[str, Any]:
+        destination_url = self._store_url(product)
+        link_data = {
+            "message": ad_creative.get("description") or product.get("description", "")[:200],
+            "link": destination_url,
+            "name": ad_creative.get("headline_long") or product.get("title", "Untitled Product"),
+            "call_to_action": {
+                "type": "SHOP_NOW",
+                "value": {"link": destination_url}
+            }
+        }
+
+        images = ad_creative.get("images") or product.get("images") or []
+        if images:
+            link_data["picture"] = images[0]
+
+        story_spec = {
+            "page_id": self.page_id,
+            "link_data": link_data,
+        }
+        if self.instagram_actor_id:
+            story_spec["instagram_actor_id"] = self.instagram_actor_id
+        return story_spec
     
     async def create_campaign(self, **kwargs) -> Dict[str, Any]:
-        return {
-            "status": "created",
-            "platform_id": f"fb_{uuid.uuid4()}",
-            "platform": "facebook_ads"
-        }
+        missing = []
+        if not self.access_token:
+            missing.append("META_ACCESS_TOKEN")
+        if not self.ad_account_id:
+            missing.append("META_AD_ACCOUNT_ID")
+        if not self.page_id:
+            missing.append("META_PAGE_ID")
+        if missing:
+            return self._missing_config("facebook_ads", missing)
+
+        product = kwargs.get("product") or {}
+        campaign_id = kwargs.get("campaign_id", str(uuid.uuid4()))
+        daily_budget = kwargs.get("daily_budget", 10)
+        ad_creative = kwargs.get("ad_creative") or {}
+        target_audience = kwargs.get("target_audience") or {}
+        campaign_name = f"{product.get('title', 'Product')} · {campaign_id[:8]}"
+        base_url = f"https://graph.facebook.com/{self.graph_version}/act_{self.ad_account_id}"
+
+        try:
+            campaign_response = await self._request(
+                "POST",
+                f"{base_url}/campaigns",
+                data={
+                    "access_token": self.access_token,
+                    "name": campaign_name,
+                    "objective": "OUTCOME_TRAFFIC",
+                    "status": "PAUSED",
+                    "special_ad_categories": json.dumps([]),
+                },
+            )
+            platform_campaign_id = campaign_response.get("id")
+
+            adset_response = await self._request(
+                "POST",
+                f"{base_url}/adsets",
+                data={
+                    "access_token": self.access_token,
+                    "name": f"{campaign_name} Ad Set",
+                    "campaign_id": platform_campaign_id,
+                    "daily_budget": str(self._minor_units(daily_budget)),
+                    "billing_event": "IMPRESSIONS",
+                    "optimization_goal": "LINK_CLICKS",
+                    "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                    "destination_type": "WEBSITE",
+                    "status": "PAUSED",
+                    "targeting": json.dumps(self._build_targeting(target_audience)),
+                },
+            )
+
+            creative_response = await self._request(
+                "POST",
+                f"{base_url}/adcreatives",
+                data={
+                    "access_token": self.access_token,
+                    "name": f"{campaign_name} Creative",
+                    "object_story_spec": json.dumps(self._build_story_spec(product, ad_creative)),
+                },
+            )
+
+            ad_response = await self._request(
+                "POST",
+                f"{base_url}/ads",
+                data={
+                    "access_token": self.access_token,
+                    "name": f"{campaign_name} Ad",
+                    "adset_id": adset_response.get("id"),
+                    "creative": json.dumps({"creative_id": creative_response.get("id")}),
+                    "status": "PAUSED",
+                },
+            )
+
+            return {
+                "status": "created",
+                "platform_id": platform_campaign_id,
+                "platform": "facebook_ads",
+                "adset_id": adset_response.get("id"),
+                "creative_id": creative_response.get("id"),
+                "ad_id": ad_response.get("id"),
+                "live": True,
+                "delivery_status": "paused",
+                "review_url": f"https://adsmanager.facebook.com/adsmanager/manage/campaigns?act={self.ad_account_id}&selected_campaign_ids={platform_campaign_id}",
+            }
+        except Exception as e:
+            logger.error(f"Facebook Ads campaign creation failed: {str(e)}")
+            return {
+                "status": "error",
+                "platform": "facebook_ads",
+                "live": False,
+                "message": str(e),
+            }
     
     async def get_campaign_metrics(self, **kwargs) -> Dict[str, Any]:
-        return {
-            "spend": 200.0,
-            "impressions": 8000,
-            "clicks": 180,
-            "conversions": 22,
-            "roi": 150.0
-        }
+        campaign_id = kwargs.get("campaign_id")
+        if not self.access_token or not campaign_id:
+            return {"spend": 0.0, "impressions": 0, "clicks": 0, "conversions": 0, "roi": 0.0}
+
+        try:
+            payload = await self._request(
+                "GET",
+                f"https://graph.facebook.com/{self.graph_version}/{campaign_id}/insights",
+                params={
+                    "access_token": self.access_token,
+                    "fields": "spend,impressions,clicks,actions",
+                },
+            )
+            insight = (payload.get("data") or [{}])[0]
+            actions = insight.get("actions") or []
+            conversions = 0
+            for action in actions:
+                if action.get("action_type") in {"purchase", "offsite_conversion.purchase", "omni_purchase"}:
+                    conversions += int(float(action.get("value", 0) or 0))
+
+            return {
+                "spend": float(insight.get("spend", 0) or 0),
+                "impressions": int(insight.get("impressions", 0) or 0),
+                "clicks": int(insight.get("clicks", 0) or 0),
+                "conversions": conversions,
+                "roi": 0.0,
+            }
+        except Exception as e:
+            logger.warning(f"Facebook Ads metrics lookup failed: {str(e)}")
+            return {"spend": 0.0, "impressions": 0, "clicks": 0, "conversions": 0, "roi": 0.0}
     
     async def pause_campaign(self, **kwargs) -> Dict[str, Any]:
-        return {"status": "paused"}
+        campaign_id = kwargs.get("campaign_id")
+        if not self.access_token or not campaign_id:
+            return self._missing_config("facebook_ads", ["META_ACCESS_TOKEN", "META_AD_ACCOUNT_ID"])
+
+        try:
+            await self._request(
+                "POST",
+                f"https://graph.facebook.com/{self.graph_version}/{campaign_id}",
+                data={
+                    "access_token": self.access_token,
+                    "status": "PAUSED",
+                },
+            )
+            return {"status": "paused", "platform": "facebook_ads", "platform_id": campaign_id, "live": True}
+        except Exception as e:
+            return {"status": "error", "platform": "facebook_ads", "live": False, "message": str(e)}
 
 
-class TikTokAdsManager:
+class TikTokAdsManager(BaseHttpPlatformManager):
     """TikTok Ads API interface"""
+
+    def __init__(self):
+        self.access_token = os.getenv("TIKTOK_ADS_ACCESS_TOKEN") or os.getenv("TIKTOK_ACCESS_TOKEN")
+        self.advertiser_id = os.getenv("TIKTOK_ADVERTISER_ID")
+        self.base_url = os.getenv("TIKTOK_ADS_BASE_URL", "https://business-api.tiktok.com/open_api/v1.3")
     
     async def create_campaign(self, **kwargs) -> Dict[str, Any]:
-        return {
-            "status": "created",
-            "platform_id": f"tiktok_{uuid.uuid4()}",
-            "platform": "tiktok_ads"
-        }
+        missing = []
+        if not self.access_token:
+            missing.append("TIKTOK_ADS_ACCESS_TOKEN")
+        if not self.advertiser_id:
+            missing.append("TIKTOK_ADVERTISER_ID")
+        if missing:
+            return self._missing_config("tiktok_ads", missing)
+
+        product = kwargs.get("product") or {}
+        campaign_id = kwargs.get("campaign_id", str(uuid.uuid4()))
+        daily_budget = kwargs.get("daily_budget", 10)
+
+        try:
+            payload = await self._request(
+                "POST",
+                f"{self.base_url}/campaign/create/",
+                headers={
+                    "Access-Token": self.access_token,
+                    "Content-Type": "application/json",
+                },
+                json_body={
+                    "advertiser_id": self.advertiser_id,
+                    "campaign_name": f"{product.get('title', 'Product')} · {campaign_id[:8]}",
+                    "objective_type": "TRAFFIC",
+                    "budget_mode": "BUDGET_MODE_DAY",
+                    "budget": float(daily_budget),
+                    "operation_status": "DISABLE",
+                },
+            )
+            data = payload.get("data") or {}
+            platform_campaign_id = data.get("campaign_id")
+            if not platform_campaign_id:
+                raise RuntimeError(payload.get("message") or "TikTok Ads did not return a campaign id")
+
+            return {
+                "status": "created",
+                "platform_id": platform_campaign_id,
+                "platform": "tiktok_ads",
+                "live": True,
+                "delivery_status": "paused",
+            }
+        except Exception as e:
+            logger.error(f"TikTok Ads campaign creation failed: {str(e)}")
+            return {
+                "status": "error",
+                "platform": "tiktok_ads",
+                "live": False,
+                "message": str(e),
+            }
     
     async def get_campaign_metrics(self, **kwargs) -> Dict[str, Any]:
         return {
-            "spend": 100.0,
-            "impressions": 12000,
-            "clicks": 240,
-            "conversions": 28,
-            "roi": 220.0
+            "spend": 0.0,
+            "impressions": 0,
+            "clicks": 0,
+            "conversions": 0,
+            "roi": 0.0
         }
     
     async def pause_campaign(self, **kwargs) -> Dict[str, Any]:
-        return {"status": "paused"}
+        campaign_id = kwargs.get("campaign_id")
+        if not self.access_token or not self.advertiser_id:
+            return self._missing_config("tiktok_ads", ["TIKTOK_ADS_ACCESS_TOKEN", "TIKTOK_ADVERTISER_ID"])
+
+        try:
+            await self._request(
+                "POST",
+                f"{self.base_url}/campaign/update/status/",
+                headers={
+                    "Access-Token": self.access_token,
+                    "Content-Type": "application/json",
+                },
+                json_body={
+                    "advertiser_id": self.advertiser_id,
+                    "campaign_id": campaign_id,
+                    "operation_status": "DISABLE",
+                },
+            )
+            return {"status": "paused", "platform": "tiktok_ads", "platform_id": campaign_id, "live": True}
+        except Exception as e:
+            return {"status": "error", "platform": "tiktok_ads", "live": False, "message": str(e)}
 
 
 class LinkedInAdsManager:

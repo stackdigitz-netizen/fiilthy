@@ -2,16 +2,76 @@
 Product Launch Routes - Unified endpoints for video generation, campaigns, and publishing
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+import os
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import logging
 import uuid
 
+from ai_services.gumroad_publisher import GumroadPublisher
+from ai_services.marketplace_integrations import MarketplaceIntegrations
+from ai_services.multi_platform_ad_manager import get_campaign_manager
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/products", tags=["product-launch"])
+gumroad_publisher = GumroadPublisher()
+marketplace_integrations = MarketplaceIntegrations()
+
+AD_PLATFORM_MAP = {
+    "tiktok": "tiktok_ads",
+    "instagram": "facebook_ads",
+    "facebook": "facebook_ads",
+    "meta": "facebook_ads",
+    "youtube": "youtube_ads",
+    "google": "google_ads",
+    "linkedin": "linkedin_ads",
+    "pinterest": "pinterest_ads",
+    "amazon": "amazon_ads",
+}
+
+
+def _get_database(request: Request):
+    return getattr(request.app.state, "db", None)
+
+
+def _map_ad_platforms(platforms: List[str]) -> tuple[List[str], List[str]]:
+    mapped: List[str] = []
+    unsupported: List[str] = []
+
+    for platform in platforms:
+        resolved = AD_PLATFORM_MAP.get(platform.lower(), platform.lower())
+        if resolved not in {
+            "google_ads",
+            "facebook_ads",
+            "tiktok_ads",
+            "linkedin_ads",
+            "pinterest_ads",
+            "amazon_ads",
+            "youtube_ads",
+        }:
+            unsupported.append(platform)
+            continue
+        if resolved not in mapped:
+            mapped.append(resolved)
+
+    return mapped, unsupported
+
+
+def _build_store_url(product: Dict[str, Any]) -> str:
+    base_url = (os.getenv("FRONTEND_URL") or os.getenv("BACKEND_URL") or "http://localhost:3000").rstrip("/")
+    return product.get("store_url") or f"{base_url}/store"
+
+
+def _summarize_platform_failures(platform_results: Dict[str, Any]) -> str:
+    failures = []
+    for platform, result in platform_results.items():
+        if result.get("status") in {"error", "failed"}:
+            failures.append(f"{platform}: {result.get('message', 'unknown error')}")
+    return "; ".join(failures)
 
 
 # Models
@@ -49,7 +109,7 @@ async def generate_product_videos(
     product_id: str,
     request: VideoGenerationRequest,
     background_tasks: BackgroundTasks,
-    db = None
+    http_request: Request,
 ):
     """
     Generate real videos for a product (TikTok + Instagram)
@@ -57,7 +117,8 @@ async def generate_product_videos(
     Returns job ID for progress tracking
     """
     try:
-        if not db:
+        db = _get_database(http_request)
+        if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
         # Get product
@@ -98,6 +159,8 @@ async def generate_product_videos(
             'message': f'Video generation started for {request.tiktok_count} TikTok + {request.instagram_count} Instagram videos'
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Video generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -106,13 +169,14 @@ async def generate_product_videos(
 @router.get("/{product_id}/video-status")
 async def get_video_generation_status(
     product_id: str,
-    db = None
+    http_request: Request,
 ):
     """
     Get status of video generation for a product
     """
     try:
-        if not db:
+        db = _get_database(http_request)
+        if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
         # Get latest job
@@ -145,6 +209,8 @@ async def get_video_generation_status(
             'completed_at': job.get('completed_at')
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get video status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -154,14 +220,15 @@ async def get_video_generation_status(
 async def save_product_branding(
     product_id: str,
     request: BrandingRequest,
-    db = None
+    http_request: Request,
 ):
     """
     Save or update product branding preferences
     User has full control to override AI recommendations
     """
     try:
-        if not db:
+        db = _get_database(http_request)
+        if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
         # Convert request to dict, excluding None values
@@ -183,6 +250,8 @@ async def save_product_branding(
             'branding': branding_data
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save branding: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -192,8 +261,7 @@ async def save_product_branding(
 async def launch_advertising_campaign(
     product_id: str,
     request: CampaignLaunchRequest,
-    background_tasks: BackgroundTasks,
-    db = None
+    http_request: Request,
 ):
     """
     Launch advertising campaign on selected platforms
@@ -201,75 +269,67 @@ async def launch_advertising_campaign(
     Sets up auto-posting with monitoring
     """
     try:
-        if not db:
+        db = _get_database(http_request)
+        if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
         # Get product
-        product = await db['products'].find_one({'id': product_id})
+        product = await db['products'].find_one({'id': product_id}, {'_id': 0})
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # Get videos for this product
-        videos_job = await db['video_jobs'].find_one(
-            {'product_id': product_id, 'status': 'completed'},
-            sort=[('created_at', -1)]
+        ad_platforms, unsupported_platforms = _map_ad_platforms(request.platforms)
+        if not ad_platforms:
+            raise HTTPException(status_code=400, detail="No supported paid ad platforms were selected")
+
+        manager = await get_campaign_manager()
+        await manager.set_db(db)
+
+        duration_days = 30
+        total_budget = request.budget or max(100.0, 50.0 * len(ad_platforms))
+        daily_budget = round(max(total_budget / duration_days, 5.0), 2)
+
+        campaign_result = await manager.create_campaign(
+            product_id=product_id,
+            platforms=ad_platforms,
+            budget=total_budget,
+            daily_budget=daily_budget,
+            duration_days=duration_days,
+            target_audience={
+                'countries': product.get('target_countries') or ['US'],
+                'age_min': product.get('target_age_min', 18),
+                'age_max': product.get('target_age_max', 65),
+            }
         )
 
-        if not videos_job:
-            raise HTTPException(
-                status_code=400,
-                detail="No completed videos found. Generate videos first."
-            )
+        if campaign_result.get('successful_platforms', 0) == 0:
+            detail = _summarize_platform_failures(campaign_result.get('platforms_created', {})) or campaign_result.get('error') or 'Campaign creation failed'
+            raise HTTPException(status_code=400, detail=detail)
 
-        # Create campaign
-        campaign_id = str(uuid.uuid4())
-        campaign = {
-            'id': campaign_id,
-            'product_id': product_id,
-            'platforms': request.platforms,
-            'status': 'active',
-            'start_date': datetime.now(timezone.utc),
-            'auto_schedule': request.autoSchedule,
-            'budget': request.budget or 100.0,
-            'videos_posted': 0,
-            'videos_total': len(videos_job.get('videos', [])),
-            'performance_metrics': {},
-            'created_at': datetime.now(timezone.utc)
-        }
-
-        await db['campaigns'].insert_one(campaign)
-
-        # Schedule background task for posting
-        background_tasks.add_task(
-            _schedule_campaign_posts,
-            db,
-            campaign_id,
-            product_id,
-            request.platforms,
-            videos_job.get('videos', [])
-        )
-
-        # Update product with published platforms
         await db['products'].update_one(
             {'id': product_id},
             {
                 '$set': {
-                    'campaign_id': campaign_id,
-                    'published_on': [
-                        {'platform': p, 'status': 'in_campaign'} for p in request.platforms
-                    ]
+                    'campaign_id': campaign_result.get('campaign_id'),
+                    'campaign_status': campaign_result.get('status'),
+                    'ads_live': True,
+                    'ads_platforms': ad_platforms,
+                    'ads_live_at': datetime.now(timezone.utc).isoformat(),
                 }
             }
         )
 
         return {
             'success': True,
-            'campaign_id': campaign_id,
-            'message': f'Campaign launched on {len(request.platforms)} platforms',
-            'platforms': request.platforms,
-            'videos_to_post': len(videos_job.get('videos', []))
+            'campaign_id': campaign_result.get('campaign_id'),
+            'message': f"Campaign created on {campaign_result.get('successful_platforms', 0)} paid ad platform(s)",
+            'platforms': ad_platforms,
+            'unsupported_platforms': unsupported_platforms,
+            'platform_results': campaign_result.get('platforms_created', {}),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Campaign launch failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -279,8 +339,7 @@ async def launch_advertising_campaign(
 async def publish_to_platform(
     product_id: str,
     request: PublishRequest,
-    background_tasks: BackgroundTasks,
-    db = None
+    http_request: Request,
 ):
     """
     Publish product to a specific store/platform
@@ -292,7 +351,8 @@ async def publish_to_platform(
     - Amazon, etc.
     """
     try:
-        if not db:
+        db = _get_database(http_request)
+        if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
         # Get product
@@ -310,36 +370,58 @@ async def publish_to_platform(
             )
 
         # Platform-specific logic
-        publish_url = await _publish_to_platform_handler(
-            db,
-            platform,
-            product,
-            background_tasks
-        )
+        publication = await _publish_to_platform_handler(db, platform, product)
 
-        # Update product
-        published_on = product.get('published_on', [])
-        # Remove if already exists
-        published_on = [p for p in published_on if p.get('platform') != platform]
-        # Add new entry
-        published_on.append({
-            'platform': platform,
-            'url': publish_url,
-            'published_at': datetime.now(timezone.utc)
-        })
+        timestamp = datetime.now(timezone.utc).isoformat()
+        if publication.get('live'):
+            published_on = [
+                entry for entry in product.get('published_on', [])
+                if entry.get('platform') != platform
+            ]
+            published_on.append({
+                'platform': platform,
+                'url': publication.get('url'),
+                'status': publication.get('status', 'published'),
+                'published_at': timestamp,
+                'live': True,
+            })
 
-        await db['products'].update_one(
-            {'id': product_id},
-            {'$set': {'published_on': published_on}}
-        )
+            update_fields: Dict[str, Any] = {'published_on': published_on}
+            if platform in {'etsy', 'stripe'}:
+                update_fields['published'] = True
+                update_fields['status'] = 'published'
+                update_fields['published_at'] = timestamp
+            if platform == 'stripe':
+                update_fields['store_url'] = publication.get('url')
+
+            await db['products'].update_one({'id': product_id}, {'$set': update_fields})
+        else:
+            await db['products'].update_one(
+                {'id': product_id},
+                {
+                    '$set': {
+                        f'publishing_notes.{platform}': {
+                            'status': publication.get('status', 'manual_required'),
+                            'url': publication.get('url'),
+                            'message': publication.get('message'),
+                            'updated_at': timestamp,
+                        }
+                    }
+                }
+            )
 
         return {
             'success': True,
             'platform': platform,
-            'url': publish_url,
-            'message': f'Product published to {platform}'
+            'url': publication.get('url'),
+            'live': publication.get('live', False),
+            'status': publication.get('status'),
+            'message': publication.get('message', f'Product published to {platform}'),
+            'details': publication.get('details'),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Publishing failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -412,27 +494,56 @@ async def _schedule_campaign_posts(db, campaign_id, product_id, platforms, video
         logger.error(f"Campaign scheduling failed: {str(e)}")
 
 
-async def _publish_to_platform_handler(db, platform, product, background_tasks):
+async def _publish_to_platform_handler(db, platform, product):
     """Platform-specific publishing logic"""
     try:
         if platform == 'gumroad':
-            # TODO: Create Gumroad product listing
-            return f"https://gumroad.com/products/{product.get('id', 'new')}"
+            listing = await marketplace_integrations.publish_to_marketplace(product, 'gumroad')
+            if listing.get('status') == 'error':
+                raise HTTPException(status_code=400, detail=listing.get('reason', 'Gumroad publishing failed'))
+            return {
+                'url': listing.get('listing_url'),
+                'status': listing.get('status', 'manual_required'),
+                'live': False,
+                'message': 'Gumroad prepared a manual product draft. Finish publication in the Gumroad dashboard.',
+                'details': listing,
+            }
         
         elif platform == 'etsy':
-            # TODO: Create Etsy listing
-            return f"https://etsy.com/shop/yourshop/{product.get('id', 'new')}"
+            listing = await marketplace_integrations.publish_to_marketplace(product, 'etsy')
+            if listing.get('status') in {'error', 'rejected'}:
+                raise HTTPException(status_code=400, detail=listing.get('reason', 'Etsy publishing failed'))
+            return {
+                'url': listing.get('listing_url'),
+                'status': listing.get('status', 'published'),
+                'live': True,
+                'message': 'Product published to Etsy',
+                'details': listing,
+            }
         
         elif platform == 'stripe':
-            # TODO: Create Stripe product page
-            return f"https://yourstore.com/products/{product.get('id', 'new')}"
+            return {
+                'url': _build_store_url(product),
+                'status': 'published',
+                'live': True,
+                'message': 'Product is available through the live storefront',
+                'details': {
+                    'platform': 'stripe_store',
+                    'product_id': product.get('id'),
+                },
+            }
         
-        elif platform == 'youtube':
-            # TODO: Upload to YouTube channel
-            return "https://youtube.com/yourvideos"
+        elif platform in {'tiktok', 'instagram', 'youtube'}:
+            return {
+                'url': None,
+                'status': 'not_supported',
+                'live': False,
+                'message': 'Direct social publishing is not wired in this route yet. Use Launch Campaign for promotion.',
+                'details': {'platform': platform},
+            }
         
         else:
-            return f"https://example.com/{platform}/{product.get('id', 'new')}"
+            raise HTTPException(status_code=400, detail=f'Unsupported publishing platform: {platform}')
 
     except Exception as e:
         logger.error(f"Platform {platform} publishing failed: {str(e)}")

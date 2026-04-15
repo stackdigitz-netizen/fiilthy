@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 import aiohttp
 import requests
 
+from ai_services.multi_platform_product_sync import MultiPlatformProductSync
+
 load_dotenv()
 
 
@@ -58,27 +60,56 @@ class EtsyManager:
             }
         """
         try:
-            listing_id = f"etsy_{hash(listing_data.get('title', '')) % 1000000000000000}"
-            
+            if not all([self.api_key, self.shop_id, self.access_token]):
+                return {
+                    "status": "error",
+                    "platform": "etsy",
+                    "message": "Etsy credentials not configured"
+                }
+
+            sync_manager = MultiPlatformProductSync()
+            result = await sync_manager._sync_to_etsy({
+                "title": listing_data.get("title"),
+                "description": listing_data.get("description"),
+                "price": listing_data.get("price"),
+                "quantity": listing_data.get("quantity", 1),
+                "tags": listing_data.get("tags", []),
+                "images": listing_data.get("images", []),
+                "inventory": {"etsy": listing_data.get("quantity", 1)},
+                "etsy_taxonomy_id": listing_data.get("taxonomy_id") or listing_data.get("category_id"),
+                "etsy_state": listing_data.get("state", "draft"),
+                "etsy_who_made": listing_data.get("who_made", "i_did"),
+                "etsy_when_made": listing_data.get("when_made", "made_to_order"),
+                "etsy_listing_type": listing_data.get("type", "download"),
+            })
+
+            if not result.get("success"):
+                return {
+                    "status": "error",
+                    "platform": "etsy",
+                    "message": result.get("error", "Failed to create Etsy listing")
+                }
+
+            listing_id = result.get("listing_id")
             self.listings_cache[listing_id] = {
                 "title": listing_data.get("title"),
                 "description": listing_data.get("description"),
                 "price": listing_data.get("price"),
                 "quantity": listing_data.get("quantity", 1),
                 "tags": listing_data.get("tags", []),
-                "status": "active",
+                "status": result.get("status", "active"),
                 "created_at": datetime.now().isoformat(),
                 "views": 0,
                 "favorites": 0,
                 "sold": 0
             }
-            
+
             return {
                 "status": "success",
                 "platform": "etsy",
                 "listing_id": listing_id,
                 "title": listing_data.get("title"),
-                "url": f"https://www.etsy.com/listing/{listing_id}",
+                "url": result.get("url"),
                 "created_at": datetime.now().isoformat()
             }
         

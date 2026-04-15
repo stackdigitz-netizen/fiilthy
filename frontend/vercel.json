@@ -1,12 +1,18 @@
 {
+  "version": 2,
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "build",
   "env": {
-    "REACT_APP_BACKEND_URL": "https://fiilthy-ai-backend-2ni1ra3dm-stackdigitz-5790s-projects.vercel.app",
+    "REACT_APP_BACKEND_URL": "https://ceo-backend-production.up.railway.app",
     "CI": "false"
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }

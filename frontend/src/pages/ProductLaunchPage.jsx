@@ -156,18 +156,25 @@ const ProductLaunchPage = () => {
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setLaunchState(prev => ({
-          ...prev,
-          [selected]: {
-            campaignLive: true,
-            campaignId: data.campaign_id,
-            publishedOn: platforms
-          }
-        }));
-        await loadProducts();
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.detail || data.message || 'Failed to launch campaign');
       }
+
+      setLaunchState(prev => ({
+        ...prev,
+        [selected]: {
+          campaignLive: true,
+          campaignId: data.campaign_id,
+          publishedOn: data.platforms || platforms,
+          notice: data.unsupported_platforms?.length
+            ? `Skipped unsupported platforms: ${data.unsupported_platforms.join(', ')}`
+            : data.message,
+          noticeType: data.unsupported_platforms?.length ? 'warning' : 'success'
+        }
+      }));
+      await loadProducts();
     } catch (error) {
       setLaunchState(prev => ({
         ...prev,
@@ -186,16 +193,39 @@ const ProductLaunchPage = () => {
         body: JSON.stringify({ platform })
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || `Failed to publish to ${platform}`);
+      }
+
+      setLaunchState(prev => ({
+        ...prev,
+        [selected]: {
+          ...(prev[selected] || {}),
+          notice: data.message,
+          noticeType: data.live ? 'success' : 'warning'
+        }
+      }));
+
+      if (data.live) {
         setProducts(prev => prev.map(p => 
           p.id === selected 
-            ? { ...p, published_on: [...(p.published_on || []), { platform, url: data.url }] }
+            ? {
+                ...p,
+                published_on: [
+                  ...(p.published_on || []).filter(entry => entry.platform !== platform),
+                  { platform, url: data.url }
+                ]
+              }
             : p
         ));
       }
     } catch (error) {
-      console.error(`Failed to publish to ${platform}:`, error);
+      setLaunchState(prev => ({
+        ...prev,
+        [selected]: { ...(prev[selected] || {}), error: error.message }
+      }));
     }
   };
 
@@ -345,6 +375,13 @@ const ProductLaunchPage = () => {
             <div className="alert alert-error">
               <AlertCircle size={18} />
               <span>{state.error}</span>
+            </div>
+          )}
+
+          {state.notice && (
+            <div className={`alert ${state.noticeType === 'warning' ? 'alert-warning' : 'alert-success'}`}>
+              <CheckCircle size={18} />
+              <span>{state.notice}</span>
             </div>
           )}
 

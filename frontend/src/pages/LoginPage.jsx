@@ -35,7 +35,7 @@ export default function LoginPage() {
 
       const { access_token, user } = data;
       login(access_token, user);
-      navigate('/products');
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {

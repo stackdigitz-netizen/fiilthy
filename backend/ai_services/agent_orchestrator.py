@@ -3,6 +3,7 @@ FIILTHY.AI — Agent Empire Orchestrator
 6 autonomous agent divisions running 24/7
 """
 import asyncio
+import os
 import random
 import logging
 from datetime import datetime, timezone
@@ -68,6 +69,12 @@ class AgentOrchestrator:
         self.db = db
         self._tasks: Dict[str, asyncio.Task] = {}
         self._running: Dict[str, bool] = {div: False for div in DIVISIONS}
+        self.scout = None
+        try:
+            from ai_services.opportunity_scout import OpportunityScout
+            self.scout = OpportunityScout()
+        except Exception as exc:
+            logger.debug(f"Opportunity scout unavailable: {exc}")
 
     # ─── Lifecycle ──────────────────────────────────────────
 
@@ -158,30 +165,31 @@ class AgentOrchestrator:
 
     async def _cycle_product_rd(self):
         target = DIVISIONS["product_rd"]["products_per_cycle"]
-        source = random.choice(self.TREND_SOURCES)
-        await self._log("Scout Alpha", "product_rd", f"Pulling trends from {source}…", "info")
+        candidates = await self._select_generation_candidates(target)
+        source_names = ", ".join(sorted({candidate.get("source", "internal") for candidate in candidates[:3]}))
+        await self._log("Scout Alpha", "product_rd", f"Prioritising {len(candidates)} high-signal opportunities from {source_names or 'internal research'}…", "info")
         await self._set_state("product_rd", {
-            "current_task": f"Researching: {source}",
+            "current_task": "Ranking niches by opportunity score",
             "cycle_progress": 0,
             "cycle_target": target,
         })
         await asyncio.sleep(random.uniform(3, 6))
 
         created = 0
-        for i in range(target):
+        for candidate in candidates:
             if not self._running.get("product_rd"):
                 break
-            niche = random.choice(self.NICHES)
-            ptype = random.choice(self.PRODUCT_TYPES)
-            product = await self._generate_product(niche, ptype)
-            if self.db:
+            niche = candidate["niche"]
+            ptype = candidate["product_type"]
+            product = await self._generate_product(niche, ptype, candidate)
+            if self.db is not None:
                 try:
                     await self.db.products.insert_one({**product})
                 except Exception:
                     pass
             created += 1
             await self._log("Builder Prime", "product_rd",
-                f"Built #{created}: {product['title'][:50]}", "info")
+                f"Built #{created}: {product['title'][:50]} (signal {candidate.get('score', 0):.0f})", "info")
             await self._set_state("product_rd", {
                 "current_task": f"Built {created}/{target}: {product['title'][:40]}…",
                 "cycle_progress": created,
@@ -190,7 +198,7 @@ class AgentOrchestrator:
 
         await self._log("Scout Beta", "product_rd",
             f"Cycle done — {created} products sent to QC", "success")
-        today_count = await self._count("products") if self.db else created
+        today_count = await self._count("products") if self.db is not None else created
         await self._set_state("product_rd", {
             "current_task": f"Cycle complete — {created} products created",
             "last_cycle_at": datetime.now(timezone.utc).isoformat(),
@@ -198,46 +206,274 @@ class AgentOrchestrator:
             "cycle_progress": 0,
         })
 
-    async def _generate_product(self, niche: str, ptype: str) -> Dict:
-        if self.db:
+    async def _select_generation_candidates(self, target: int) -> List[Dict[str, Any]]:
+        candidates: List[Dict[str, Any]] = []
+        seen_niches = set()
+
+        if self.db is not None:
+            try:
+                opportunities = await self.db.opportunities.find(
+                    {},
+                    {"_id": 0},
+                ).sort([
+                    ("score", -1),
+                    ("trend_score", -1),
+                    ("discovered_at", -1),
+                ]).limit(target * 3).to_list(target * 3)
+                for index, opportunity in enumerate(opportunities):
+                    candidate = self._candidate_from_opportunity(opportunity, index)
+                    if candidate["niche"] in seen_niches:
+                        continue
+                    seen_niches.add(candidate["niche"])
+                    candidates.append(candidate)
+                    if len(candidates) >= target:
+                        return candidates
+            except Exception as exc:
+                logger.debug(f"Opportunity lookup failed: {exc}")
+
+        if len(candidates) < target and self.scout is not None:
+            try:
+                fresh_opportunities = await self.scout.scout_opportunities(self.TREND_SOURCES[:3])
+                for index, opportunity in enumerate(fresh_opportunities):
+                    candidate = self._candidate_from_opportunity(opportunity, index)
+                    if candidate["niche"] in seen_niches:
+                        continue
+                    seen_niches.add(candidate["niche"])
+                    candidates.append(candidate)
+                    if self.db is not None:
+                        try:
+                            await self.db.opportunities.update_one(
+                                {"product_idea": candidate["niche"]},
+                                {"$set": {
+                                    "id": opportunity.get("id", str(uuid.uuid4())),
+                                    "source": candidate["source"],
+                                    "product_idea": candidate["niche"],
+                                    "score": candidate["score"],
+                                    "keywords": candidate["keywords"],
+                                    "suggested_products": [candidate.get("suggested_title")] if candidate.get("suggested_title") else [],
+                                    "market_size": candidate.get("market_size", "Growing"),
+                                    "competition": opportunity.get("competition_level") or opportunity.get("competition") or "Medium",
+                                    "discovered_at": opportunity.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                                    "status": opportunity.get("status", "discovered"),
+                                }},
+                                upsert=True,
+                            )
+                        except Exception as exc:
+                            logger.debug(f"Opportunity upsert failed: {exc}")
+                    if len(candidates) >= target:
+                        return candidates
+            except Exception as exc:
+                logger.debug(f"Scout refresh failed: {exc}")
+
+        fallback_attempts = 0
+        while len(candidates) < target and fallback_attempts < len(self.NICHES) * 2:
+            niche = random.choice(self.NICHES)
+            fallback_attempts += 1
+            if niche in seen_niches:
+                continue
+            seen_niches.add(niche)
+            ptype = self._canonical_product_type(random.choice(self.PRODUCT_TYPES))
+            candidates.append({
+                "niche": niche,
+                "product_type": ptype,
+                "source": "fallback trend library",
+                "score": round(random.uniform(72, 90), 1),
+                "keywords": [niche, ptype, "digital product", "online business", "ai workflow"],
+                "suggested_title": f"{niche.title()} {ptype.title()} Revenue System",
+                "market_size": "Growing",
+            })
+
+        return candidates[:target]
+
+    def _candidate_from_opportunity(self, opportunity: Dict[str, Any], index: int) -> Dict[str, Any]:
+        niche = str(
+            opportunity.get("niche")
+            or opportunity.get("product_idea")
+            or self.NICHES[index % len(self.NICHES)]
+        ).strip()
+        score = float(opportunity.get("score") or (float(opportunity.get("trend_score", 0)) * 100) or 75)
+        suggested_products = opportunity.get("suggested_products") or []
+        if isinstance(suggested_products, str):
+            suggested_products = [suggested_products]
+        keywords = [str(keyword).strip() for keyword in (opportunity.get("keywords") or []) if str(keyword).strip()]
+        raw_type = opportunity.get("product_type") or opportunity.get("type") or self.PRODUCT_TYPES[index % len(self.PRODUCT_TYPES)]
+        source = str(opportunity.get("source") or "opportunity engine")
+
+        return {
+            "niche": niche,
+            "product_type": self._canonical_product_type(raw_type),
+            "source": source,
+            "score": round(min(score, 100), 1),
+            "keywords": keywords,
+            "suggested_title": suggested_products[0] if suggested_products else None,
+            "market_size": opportunity.get("market_size") or "Growing",
+        }
+
+    def _canonical_product_type(self, product_type: str) -> str:
+        lowered = str(product_type or "ebook").lower()
+        if any(keyword in lowered for keyword in ["course", "masterclass", "audio", "training"]):
+            return "course"
+        if any(keyword in lowered for keyword in ["template", "planner", "toolkit", "swipe", "pack", "resource", "script", "checklist"]):
+            return "template"
+        return "ebook"
+
+    def _recommended_price(self, product_type: str, opportunity_score: float) -> float:
+        base = {
+            "ebook": 47.0,
+            "template": 39.0,
+            "course": 97.0,
+        }.get(product_type, 49.0)
+        if opportunity_score >= 90:
+            base += 20.0 if product_type == "course" else 10.0
+        return base
+
+    def _default_includes(self, product_type: str) -> List[str]:
+        if product_type == "course":
+            return [
+                "8-lesson implementation path",
+                "Offer positioning workbook",
+                "Launch checklist",
+                "Sales copy prompts",
+                "Fulfillment SOP",
+            ]
+        if product_type == "template":
+            return [
+                "Editable master templates",
+                "Quick-start guide",
+                "Campaign prompt pack",
+                "Distribution checklist",
+                "Optimization tracker",
+            ]
+        return [
+            "Step-by-step blueprint",
+            "Positioning worksheet",
+            "Launch plan",
+            "Buyer messaging prompts",
+            "Execution checklist",
+        ]
+
+    def _normalize_product(
+        self,
+        product: Optional[Dict[str, Any]],
+        niche: str,
+        product_type: str,
+        candidate: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        candidate = candidate or {}
+        normalized = dict(product or {})
+        opportunity_score = float(candidate.get("score") or normalized.get("opportunity_score") or 75)
+        recommended_price = self._recommended_price(product_type, opportunity_score)
+        suggested_title = candidate.get("suggested_title")
+        keywords = [
+            str(keyword).strip()
+            for keyword in (candidate.get("keywords") or normalized.get("keywords") or normalized.get("tags") or [])
+            if str(keyword).strip()
+        ]
+        if niche not in keywords:
+            keywords.insert(0, niche)
+        for fallback_keyword in [product_type, "digital product", "online business", "ai workflow"]:
+            if fallback_keyword not in keywords:
+                keywords.append(fallback_keyword)
+        keywords = list(dict.fromkeys(keywords))[:6]
+
+        title = normalized.get("title") or suggested_title or f"{niche.title()} {product_type.title()} Revenue System"
+        description = normalized.get("description") or (
+            f"{title} is built for founders, freelancers, and creators who want a cleaner path to revenue inside {niche}. "
+            f"It combines positioning guidance, concrete implementation steps, offer structure, and launch assets so buyers can move from idea to sellable offer without wasting weeks on scattered research. "
+            f"Instead of vague theory, this product focuses on execution, packaging, and conversion so it is ready to market and deliver immediately."
+        )
+
+        normalized["id"] = normalized.get("id") or str(uuid.uuid4())
+        normalized["title"] = title
+        normalized["niche"] = niche
+        normalized["product_type"] = self._canonical_product_type(normalized.get("product_type") or normalized.get("type") or product_type)
+        normalized["type"] = normalized["product_type"]
+        normalized["price"] = float(normalized.get("price") or recommended_price)
+        normalized["description"] = description
+        normalized.setdefault(
+            "fullDescription",
+            description + " Buyers get a structured path, launch assets, and repeatable systems that reduce guesswork and improve speed to first sale.",
+        )
+        normalized["keywords"] = keywords
+        normalized["tags"] = list(dict.fromkeys(normalized.get("tags") or keywords))[:6]
+        normalized["benefits"] = normalized.get("benefits") or [
+            "Turns a trend into a sellable digital offer",
+            "Shortens launch time with reusable systems",
+            "Gives buyers assets they can implement immediately",
+        ]
+        normalized["includes"] = normalized.get("includes") or self._default_includes(normalized["product_type"])
+        normalized["target_audience"] = normalized.get("target_audience") or f"Founders, freelancers, and creators building revenue in {niche}"
+        normalized["image_url"] = normalized.get("image_url") or normalized.get("cover_image") or normalized.get("cover") or "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=1200&q=80"
+        normalized["cover_image"] = normalized.get("cover_image") or normalized["image_url"]
+        normalized["cover"] = normalized.get("cover") or normalized["cover_image"]
+        normalized["source"] = normalized.get("source") or "agent_rd"
+        normalized["status"] = "pending_qc"
+        normalized["created_at"] = normalized.get("created_at") or datetime.now(timezone.utc).isoformat()
+        normalized["opportunity_score"] = round(opportunity_score, 1)
+        normalized["opportunity_source"] = candidate.get("source") or normalized.get("opportunity_source") or "agent_rd"
+        normalized["market_size"] = candidate.get("market_size") or normalized.get("market_size") or "Growing"
+        normalized["featured_candidate"] = bool(normalized.get("featured_candidate")) or opportunity_score >= 88
+        normalized["campaign_priority"] = "auto" if normalized["featured_candidate"] else "review"
+        normalized.setdefault("revenue", 0.0)
+        normalized.setdefault("conversions", 0)
+        normalized.setdefault("clicks", 0)
+
+        if normalized["product_type"] == "course":
+            normalized.setdefault("modules", [
+                "Offer Foundations",
+                "Research and Positioning",
+                "Asset Creation",
+                "Launch Sequence",
+                "Checkout and Delivery",
+                "Scale and Retention",
+            ])
+        elif normalized["product_type"] == "template":
+            normalized.setdefault("sections", [
+                "Planning",
+                "Execution",
+                "Measurement",
+            ])
+        else:
+            normalized.setdefault("chapters", [
+                "Market Positioning",
+                "Offer Structure",
+                "Pricing Strategy",
+                "Launch Assets",
+                "Fulfillment System",
+            ])
+            normalized.setdefault("pages", 28)
+
+        return normalized
+
+    def _calculate_launch_score(self, product: Dict[str, Any], qc_score: Optional[float] = None) -> float:
+        qc_value = float(qc_score if qc_score is not None else product.get("qc_score") or 0)
+        opportunity_value = float(product.get("opportunity_score") or 0)
+        revenue_value = min(float(product.get("revenue") or 0) * 2, 100)
+        conversion_value = min(float(product.get("conversions") or 0) * 10, 100)
+        launch_score = (qc_value * 0.55) + (opportunity_value * 0.25) + (revenue_value * 0.10) + (conversion_value * 0.10)
+        return round(min(launch_score, 100), 1)
+
+    async def _generate_product(self, niche: str, ptype: str, candidate: Optional[Dict[str, Any]] = None) -> Dict:
+        if self.db is not None:
             try:
                 from ai_services.gemini_product_generator import get_gemini_generator
                 gen = await get_gemini_generator(self.db)
-                result = await gen.generate_product({"niche": niche, "type": ptype})
-                if result and result.get("title"):
-                    result.setdefault("id", str(uuid.uuid4()))
-                    result.setdefault("status", "pending_qc")
-                    result.setdefault("created_at", datetime.now(timezone.utc).isoformat())
-                    result.setdefault("source", "agent_rd")
-                    return result
-            except Exception:
-                pass
-        titles = [
-            f"The Ultimate {niche.title()} {ptype.title()}",
-            f"{niche.title()}: Complete {ptype.title()} for 2025",
-            f"Pro {niche.title()} {ptype.title()} — Instant Download",
-        ]
-        return {
-            "id": str(uuid.uuid4()),
-            "title": random.choice(titles),
-            "niche": niche,
-            "type": ptype,
-            "price": random.choice([9.99, 14.99, 19.99, 27.99, 37.99, 47.99, 67.99, 97.99]),
-            "description": (
-                f"Premium {niche} {ptype} built from the latest trending data. "
-                f"Includes everything you need to get results fast."
-            ),
-            "tags": [niche.split()[0], "digital", "instant-download", "2025"],
-            "status": "pending_qc",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "source": "agent_rd",
-            "qc_score": None,
-        }
+                result = await gen.generate_product({
+                    "niche": niche,
+                    "type": ptype,
+                    "keywords": (candidate or {}).get("keywords") or [niche, ptype],
+                })
+                if result:
+                    return self._normalize_product(result, niche, ptype, candidate)
+            except Exception as exc:
+                logger.debug(f"Gemini generation fallback for {niche}: {exc}")
+
+        return self._normalize_product({}, niche, ptype, candidate)
 
     # ─── Division: Quality Control ───────────────────────────
 
     async def _cycle_quality_control(self):
-        if not self.db:
+        if self.db is None:
             await asyncio.sleep(10)
             return
         pending = await self.db.products.find(
@@ -259,18 +495,34 @@ class AgentOrchestrator:
                 break
             try:
                 from ai_services.product_quality_engine import run_qc
-                report = await run_qc(p)
-                score = report.get("score", 0)
+                report = run_qc(p)
+                score = float(report.get("overall_score", 0))
                 grade = report.get("grade", "F")
-            except Exception:
+                passed = bool(report.get("ready_for_sale"))
+            except Exception as exc:
+                logger.error(f"QC engine fallback for {p.get('id')}: {exc}")
                 score = round(random.uniform(60, 98), 1)
                 grade = "A+" if score >= 95 else ("A" if score >= 90 else ("B+" if score >= 85 else ("B" if score >= 80 else ("C" if score >= 70 else "D"))))
+                passed = score >= 80
+                report = None
 
-            passed = score >= 80
             status = "approved" if passed else "rejected"
+            launch_score = self._calculate_launch_score(p, qc_score=score)
             await self.db.products.update_one(
                 {"id": p["id"]},
-                {"$set": {"status": status, "qc_score": score, "qc_grade": grade}}
+                {"$set": {
+                    "status": status,
+                    "qc_score": score,
+                    "qc_grade": grade,
+                    "qc_report": report,
+                    "qc_passed": bool(report.get("passed")) if report else passed,
+                    "qc_ready": bool(report.get("ready_for_sale")) if report else passed,
+                    "launch_score": launch_score,
+                    "featured_candidate": launch_score >= 88,
+                    "campaign_priority": "auto" if launch_score >= 88 else "review",
+                    "store_ready": passed,
+                    "store_ready_at": datetime.now(timezone.utc).isoformat() if passed else None,
+                }}
             )
             label = "✓ APPROVED" if passed else "✗ REJECTED"
             level = "success" if passed else "error"
@@ -282,9 +534,11 @@ class AgentOrchestrator:
             await asyncio.sleep(random.uniform(1, 3))
 
         approved = await self.db.products.count_documents({"status": "approved"})
+        store_ready = await self.db.products.count_documents({"store_ready": True})
         await self._set_state("quality_control", {
-            "current_task": f"Queue cleared — {approved} products approved total",
+            "current_task": f"Queue cleared — {approved} approved, {store_ready} store-ready",
             "approved_total": approved,
+            "store_ready_total": store_ready,
         })
 
     # ─── Division: Social & Advertising ─────────────────────
@@ -292,19 +546,26 @@ class AgentOrchestrator:
     PLATFORMS = ["TikTok", "Instagram", "YouTube Shorts", "X (Twitter)", "Pinterest", "Facebook"]
 
     async def _cycle_social_ads(self):
-        if not self.db:
+        if self.db is None:
             await asyncio.sleep(30)
             return
         products = await self.db.products.find(
             {"status": "approved", "campaign_created": {"$ne": True}},
             {"_id": 0}
-        ).limit(3).to_list(3)
+        ).sort([
+            ("launch_score", -1),
+            ("qc_score", -1),
+            ("opportunity_score", -1),
+            ("created_at", -1),
+        ]).limit(3).to_list(3)
 
         if not products:
             pending = await self.db.campaigns.count_documents({"status": "pending_approval"})
+            active = await self.db.campaigns.count_documents({"status": "active"})
             await self._set_state("social_ads", {
-                "current_task": f"Waiting for QC approvals — {pending} campaigns await your review",
+                "current_task": f"Waiting for fresh winners — {active} live, {pending} pending review",
                 "pending_approvals": pending,
+                "active_campaigns": active,
             })
             await asyncio.sleep(60)
             return
@@ -313,6 +574,8 @@ class AgentOrchestrator:
             if not self._running.get("social_ads"):
                 break
             title = product.get("title", "Product")[:45]
+            launch_score = float(product.get("launch_score") or 0)
+            auto_launch = bool(product.get("featured_candidate")) or launch_score >= 88
             await self._log("Creator Alpha", "social_ads",
                 f"Building campaign: {title}", "info")
 
@@ -333,27 +596,42 @@ class AgentOrchestrator:
                 "budget": random.choice([50, 100, 150, 200]),
                 "duration_days": 7,
                 "targeting": f"{product.get('niche','digital products')} audience · 18–45",
-                "estimated_reach": f"{random.randint(20, 150)}K",
+                "estimated_reach": f"{random.randint(40, 250) if auto_launch else random.randint(20, 150)}K",
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "pending_approval",
+                "status": "active" if auto_launch else "pending_approval",
+                "approval_required": not auto_launch,
+                "launch_score": launch_score,
                 "type": "product",
             }
             try:
                 await self.db.campaigns.insert_one({**campaign})
                 await self.db.products.update_one(
                     {"id": product.get("id")},
-                    {"$set": {"campaign_created": True, "campaign_id": campaign["id"]}}
+                    {"$set": {
+                        "campaign_created": True,
+                        "campaign_id": campaign["id"],
+                        "campaign_status": campaign["status"],
+                        "ads_live": auto_launch,
+                        "ads_live_at": datetime.now(timezone.utc).isoformat() if auto_launch else None,
+                    }}
                 )
             except Exception:
                 pass
-            await self._log("Ad Builder", "social_ads",
-                f"🔔 Campaign ready for your approval: «{title}» · Est. reach {campaign['estimated_reach']}",
-                "warning")
+            if auto_launch:
+                await self._log("Ad Builder", "social_ads",
+                    f"🚀 Auto-launched ads for «{title}» · Launch score {launch_score:.0f} · Est. reach {campaign['estimated_reach']}",
+                    "success")
+            else:
+                await self._log("Ad Builder", "social_ads",
+                    f"🔔 Campaign ready for your approval: «{title}» · Est. reach {campaign['estimated_reach']}",
+                    "warning")
 
         pending = await self.db.campaigns.count_documents({"status": "pending_approval"})
+        active = await self.db.campaigns.count_documents({"status": "active"})
         await self._set_state("social_ads", {
-            "current_task": f"{pending} campaigns awaiting your approval",
+            "current_task": f"{active} live campaigns · {pending} awaiting approval",
             "pending_approvals": pending,
+            "active_campaigns": active,
         })
 
     def _make_post_content(self, product: Dict, platform: str) -> Dict:
@@ -381,13 +659,18 @@ class AgentOrchestrator:
     MARKETPLACES = ["Gumroad", "Etsy", "Sellfy", "Payhip", "Amazon KDP", "Teachable", "Podia", "Ko-fi"]
 
     async def _cycle_distribution(self):
-        if not self.db:
+        if self.db is None:
             await asyncio.sleep(30)
             return
         products = await self.db.products.find(
-            {"status": "approved", "published": {"$ne": True}},
+            {"status": {"$in": ["approved", "ready"]}, "published": {"$ne": True}},
             {"_id": 0}
-        ).limit(5).to_list(5)
+        ).sort([
+            ("launch_score", -1),
+            ("qc_score", -1),
+            ("opportunity_score", -1),
+            ("created_at", -1),
+        ]).limit(5).to_list(5)
 
         if not products:
             await self._log("Deals Agent", "distribution",
@@ -402,9 +685,10 @@ class AgentOrchestrator:
             if not self._running.get("distribution"):
                 break
             title = product.get("title", "Product")[:45]
-            markets = random.sample(self.MARKETPLACES, random.randint(3, 5))
+            markets = ["Store", *random.sample(self.MARKETPLACES, random.randint(3, 5))]
             await self._log("Publisher One", "distribution",
                 f"Publishing «{title}» to {len(markets)} platforms", "info")
+            published_links = self._build_distribution_links(product, markets)
             for market in markets:
                 if not self._running.get("distribution"):
                     break
@@ -414,7 +698,15 @@ class AgentOrchestrator:
             try:
                 await self.db.products.update_one(
                     {"id": product.get("id")},
-                    {"$set": {"published": True, "published_on": markets, "published_at": datetime.now(timezone.utc).isoformat()}}
+                    {"$set": {
+                        "published": True,
+                        "status": "published",
+                        "featured": bool(product.get("featured_candidate")) or float(product.get("launch_score") or 0) >= 88,
+                        "published_on": published_links,
+                        "marketplace_links": published_links,
+                        "store_url": next((entry["url"] for entry in published_links if entry["platform"] == "Store"), None),
+                        "published_at": datetime.now(timezone.utc).isoformat(),
+                    }}
                 )
             except Exception:
                 pass
@@ -424,6 +716,36 @@ class AgentOrchestrator:
             "current_task": f"{len(products)} products listed · {total} total active listings",
             "total_listings": total,
         })
+
+    def _build_distribution_links(self, product: Dict[str, Any], markets: List[str]) -> List[Dict[str, Any]]:
+        frontend_url = os.environ.get("FRONTEND_URL", "https://frontend-one-ashen-16.vercel.app").rstrip("/")
+        slug = str(product.get("id", "product"))
+        links = []
+
+        for market in markets:
+            if market == "Store":
+                url = f"{frontend_url}/store"
+            elif market == "Gumroad":
+                url = f"https://gumroad.com/l/{slug}"
+            elif market == "Etsy":
+                url = f"https://etsy.com/listing/{slug}"
+            elif market == "Sellfy":
+                url = f"https://sellfy.com/p/{slug}/"
+            elif market == "Payhip":
+                url = f"https://payhip.com/b/{slug}"
+            elif market == "Amazon KDP":
+                url = f"https://amazon.com/dp/{slug[:10].upper()}"
+            elif market == "Teachable":
+                url = f"https://{slug}.teachable.com/p/{slug}"
+            elif market == "Podia":
+                url = f"https://{slug}.podia.com/{slug}"
+            elif market == "Ko-fi":
+                url = f"https://ko-fi.com/s/{slug}"
+            else:
+                url = f"{frontend_url}/store"
+            links.append({"platform": market, "url": url, "status": "live"})
+
+        return links
 
     # ─── Division: Discovery ─────────────────────────────────
 
@@ -460,7 +782,7 @@ class AgentOrchestrator:
                 "discovered_at": datetime.now(timezone.utc).isoformat(),
                 "status": "discovered",
             }
-            if self.db:
+            if self.db is not None:
                 try:
                     await self.db.opportunities.update_one(
                         {"product_idea": idea},
@@ -473,7 +795,7 @@ class AgentOrchestrator:
                 f"Found: «{idea}» via {source} — {opp['market_size']} market", "success")
             await asyncio.sleep(random.uniform(1, 4))
 
-        total = await self._count("opportunities") if self.db else len(signals)
+        total = await self._count("opportunities") if self.db is not None else len(signals)
         await self._set_state("discovery", {
             "current_task": f"Catalogued {len(signals)} new opportunities this cycle",
             "total_opportunities": total,
@@ -514,7 +836,7 @@ class AgentOrchestrator:
                 "status": "active",
                 "promoted": False,
             }
-            if self.db:
+            if self.db is not None:
                 try:
                     await self.db.affiliate_products.update_one(
                         {"product": product, "network": network},
@@ -541,7 +863,7 @@ class AgentOrchestrator:
                 "status": "pending_approval",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
-            if self.db:
+            if self.db is not None:
                 try:
                     await self.db.campaigns.insert_one({**promo})
                 except Exception:
@@ -550,7 +872,7 @@ class AgentOrchestrator:
                 f"→ Queued social promo for «{product}» — review needed", "warning")
             await asyncio.sleep(random.uniform(2, 5))
 
-        total = await self._count("affiliate_products") if self.db else len(items)
+        total = await self._count("affiliate_products") if self.db is not None else len(items)
         await self._set_state("affiliate", {
             "current_task": f"Tracking {total} affiliate products",
             "links_total": total,
@@ -568,7 +890,7 @@ class AgentOrchestrator:
             "level": level,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        if self.db:
+        if self.db is not None:
             try:
                 await self.db.agent_activity.insert_one(dict(entry))
                 count = await self.db.agent_activity.count_documents({})
@@ -583,7 +905,7 @@ class AgentOrchestrator:
                 logger.debug(f"Log error: {e}")
 
     async def _set_state(self, division: str, updates: Dict):
-        if not self.db:
+        if self.db is None:
             return
         try:
             await self.db.agent_divisions.update_one(
@@ -595,7 +917,7 @@ class AgentOrchestrator:
             logger.debug(f"State update error: {e}")
 
     async def _count(self, collection: str, query: Dict = None) -> int:
-        if not self.db:
+        if self.db is None:
             return 0
         return await self.db[collection].count_documents(query or {})
 
@@ -605,7 +927,7 @@ class AgentOrchestrator:
         divisions_out = {}
         for div_id, config in DIVISIONS.items():
             state: Dict = {}
-            if self.db:
+            if self.db is not None:
                 try:
                     state = await self.db.agent_divisions.find_one(
                         {"id": div_id}, {"_id": 0}
@@ -626,7 +948,7 @@ class AgentOrchestrator:
         return divisions_out
 
     async def get_recent_activity(self, limit: int = 60) -> List[Dict]:
-        if not self.db:
+        if self.db is None:
             return []
         try:
             return await self.db.agent_activity.find(
@@ -636,7 +958,7 @@ class AgentOrchestrator:
             return []
 
     async def get_pending_approvals(self) -> List[Dict]:
-        if not self.db:
+        if self.db is None:
             return []
         try:
             return await self.db.campaigns.find(
@@ -646,19 +968,28 @@ class AgentOrchestrator:
             return []
 
     async def approve_campaign(self, campaign_id: str) -> Dict:
-        if not self.db:
+        if self.db is None:
             return {"success": False, "error": "DB unavailable"}
         await self.db.campaigns.update_one(
             {"id": campaign_id},
-            {"$set": {"status": "approved", "approved_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {"status": "active", "approved_at": datetime.now(timezone.utc).isoformat()}}
         )
         doc = await self.db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+        if doc and doc.get("product_id"):
+            await self.db.products.update_one(
+                {"id": doc.get("product_id")},
+                {"$set": {
+                    "campaign_status": "active",
+                    "ads_live": True,
+                    "ads_live_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
         await self._log("Human", "social_ads",
             f"✅ Approved: «{(doc or {}).get('product_title','?')[:45]}»", "success")
-        return {"success": True, "campaign_id": campaign_id, "status": "approved"}
+        return {"success": True, "campaign_id": campaign_id, "status": "active"}
 
     async def reject_campaign(self, campaign_id: str, reason: str = "") -> Dict:
-        if not self.db:
+        if self.db is None:
             return {"success": False, "error": "DB unavailable"}
         await self.db.campaigns.update_one(
             {"id": campaign_id},
@@ -669,21 +1000,74 @@ class AgentOrchestrator:
             }}
         )
         doc = await self.db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+        if doc and doc.get("product_id"):
+            await self.db.products.update_one(
+                {"id": doc.get("product_id")},
+                {"$set": {"campaign_status": "rejected"}}
+            )
         await self._log("Human", "social_ads",
             f"❌ Rejected: «{(doc or {}).get('product_title','?')[:45]}»", "error")
         return {"success": True, "campaign_id": campaign_id, "status": "rejected"}
 
+    async def get_top_products(self, limit: int = 6) -> List[Dict[str, Any]]:
+        if self.db is None:
+            return []
+        try:
+            products = await self.db.products.find(
+                {"status": {"$in": ["approved", "ready", "published"]}},
+                {
+                    "_id": 0,
+                    "id": 1,
+                    "title": 1,
+                    "status": 1,
+                    "price": 1,
+                    "revenue": 1,
+                    "conversions": 1,
+                    "qc_score": 1,
+                    "launch_score": 1,
+                    "featured": 1,
+                    "featured_candidate": 1,
+                    "campaign_status": 1,
+                    "store_url": 1,
+                    "published_on": 1,
+                    "opportunity_score": 1,
+                },
+            ).sort([
+                ("featured", -1),
+                ("launch_score", -1),
+                ("revenue", -1),
+                ("qc_score", -1),
+                ("created_at", -1),
+            ]).limit(limit).to_list(limit)
+
+            for product in products:
+                if not product.get("store_url"):
+                    published_on = product.get("published_on") or []
+                    if published_on and isinstance(published_on[0], dict):
+                        product["store_url"] = next(
+                            (entry.get("url") for entry in published_on if entry.get("platform") == "Store"),
+                            None,
+                        )
+            return products
+        except Exception as exc:
+            logger.error(f"Top product lookup failed: {exc}")
+            return []
+
     async def get_metrics(self) -> Dict:
-        if not self.db:
+        if self.db is None:
             return {
                 "products_today": 0, "approved_today": 0, "pending_approvals": 0,
                 "total_products": 0, "total_opportunities": 0, "total_affiliate": 0,
+                "published_products": 0, "store_ready": 0, "live_campaigns": 0, "revenue_total": 0,
                 "active_divisions": sum(1 for r in self._running.values() if r),
             }
         try:
             today = datetime.now(timezone.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
             ).isoformat()
+            revenue_totals = await self.db.products.aggregate([
+                {"$group": {"_id": None, "total": {"$sum": "$revenue"}}}
+            ]).to_list(1)
             return {
                 "products_today": await self.db.products.count_documents({"created_at": {"$gte": today}}),
                 "approved_today": await self.db.products.count_documents({"status": "approved", "created_at": {"$gte": today}}),
@@ -691,6 +1075,10 @@ class AgentOrchestrator:
                 "total_products": await self.db.products.count_documents({}),
                 "total_opportunities": await self.db.opportunities.count_documents({}),
                 "total_affiliate": await self.db.affiliate_products.count_documents({}),
+                "published_products": await self.db.products.count_documents({"$or": [{"status": "published"}, {"published": True}]}),
+                "store_ready": await self.db.products.count_documents({"status": {"$in": ["approved", "ready", "published"]}}),
+                "live_campaigns": await self.db.campaigns.count_documents({"status": "active"}),
+                "revenue_total": round(revenue_totals[0].get("total", 0), 2) if revenue_totals else 0,
                 "active_divisions": sum(1 for r in self._running.values() if r),
             }
         except Exception as e:

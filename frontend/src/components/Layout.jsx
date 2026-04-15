@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 import {
-  Menu, X, Cpu, Bell, LineChart, Shield, Settings,
+  Menu, X, Cpu, Bell, LineChart, Shield, Settings, ShoppingBag,
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -49,6 +49,7 @@ const Layout = ({ children }) => {
   const navigation = [
     { name: 'Command Center', href: '/',          icon: Cpu },
     { name: 'Approvals',      href: '/approvals', icon: Bell,      badge: pendingApprovals },
+    { name: 'Store',          href: '/store',     icon: ShoppingBag },
     { name: 'Analytics',      href: '/analytics', icon: LineChart },
     { name: 'Vault',          href: '/vault',      icon: Shield },
     { name: 'Settings',       href: '/settings',  icon: Settings },

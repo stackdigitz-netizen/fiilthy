@@ -20,10 +20,16 @@ export default function LandingPage() {
           <Link to="/signup" className="auth-button" style={{ display: 'inline-block', padding: '14px 32px', fontSize: '16px', textDecoration: 'none', textAlign: 'center' }}>
             Get Started Free
           </Link>
+          <Link to="/store" style={{ display: 'inline-block', padding: '14px 32px', fontSize: '16px', textDecoration: 'none', color: '#fff', background: 'linear-gradient(135deg, #00c2ff 0%, #0ea5e9 100%)', borderRadius: '8px', textAlign: 'center', fontWeight: 700 }}>
+            Shop Top Product
+          </Link>
           <Link to="/login" style={{ display: 'inline-block', padding: '14px 32px', fontSize: '16px', textDecoration: 'none', color: '#333', border: '1px solid #ddd', borderRadius: '8px', textAlign: 'center' }}>
             Sign In
           </Link>
         </div>
+        <p style={{ fontSize: '14px', color: '#666', marginTop: '18px', marginBottom: 0 }}>
+          Want the ready-made offer first? Start with the public store and sell before building the rest of the system.
+        </p>
       </div>
 
       {/* Features */}

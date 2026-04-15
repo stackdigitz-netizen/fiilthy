@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 import json
 import openai
@@ -217,6 +217,7 @@ automation_scheduler = None
 
 # Create the main app without a prefix
 app = FastAPI()
+app.state.db = db
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -235,6 +236,10 @@ class ProductStatus(str, Enum):
     READY = "ready"
     PUBLISHED = "published"
     RETIRED = "retired"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    PENDING_QC = "pending_qc"
+    GENERATED = "generated"
 
 class OpportunityStatus(str, Enum):
     IDENTIFIED = "identified"
@@ -272,7 +277,7 @@ class Product(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: str
-    product_type: ProductType
+    product_type: ProductType = ProductType.TEMPLATE
     content: Optional[str] = None
     cover_image: Optional[str] = None
     status: ProductStatus = ProductStatus.DRAFT
@@ -556,6 +561,7 @@ async def store_api_keys(keys: APIKeyInput, _auth: dict = Depends(require_auth))
                     print("[WARN] MongoDB connection skipped: unsupported Atlas SQL/query endpoint")
             except Exception as e:
                 print(f"[WARN] MongoDB connection failed: {e}")
+            app.state.db = db
         
         return APIKeyResponse(
             status="success",
@@ -837,12 +843,13 @@ async def generate_full_product(request: FullProductGenerationRequest, _auth: di
         
         # Step 3: Save to MongoDB (optional)
         database_id = None
-        if request.save_to_db and db:
+        if request.save_to_db and db is not None:
             try:
                 product_doc = {
                     "id": str(uuid.uuid4()),
                     "title": product_response.title,
                     "description": product_response.description,
+                    "product_type": "template",
                     "keywords": product_response.keywords,
                     "price_range": product_response.price_range,
                     "target_audience": product_response.target_audience,
@@ -2327,11 +2334,13 @@ async def publish_to_gumroad(product_id: str, _auth: dict = Depends(require_auth
                 {"id": product_id},
                 {"$set": {
                     "gumroad_data": result,
+                    "gumroad_id": result.get("gumroad_id"),
+                    "gumroad_url": result.get("url"),
                     "status": "published",
                     "marketplace_links": [{
                         "platform": "Gumroad",
                         "url": result.get("url"),
-                        "product_id": result.get("product_id"),
+                        "product_id": result.get("gumroad_id"),
                         "status": "live"
                     }]
                 }}
@@ -2704,7 +2713,7 @@ async def generate_multi_platform_posts(request: GenerateMultiPlatformPostsReque
     try:
         # Get product info if product_id provided
         product_info = request.product_info or {}
-        if request.product_id and db:
+        if request.product_id and db is not None:
             product = await db.products.find_one({"id": request.product_id}, {"_id": 0})
             if product:
                 product_info = {
@@ -3928,7 +3937,7 @@ async def create_purchase(purchase_data: dict, _auth: dict = Depends(require_aut
             download_expires_at=datetime.now(timezone.utc) + timedelta(days=30)
         )
         
-        if db:
+        if db is not None:
             doc = purchase.model_dump()
             doc['created_at'] = doc['created_at'].isoformat()
             if doc.get('download_expires_at'):
@@ -4853,6 +4862,8 @@ async def handle_stripe_webhook(request: Request):
             payment_intent_id = session_data.get('payment_intent')
             customer_email = session_data.get('customer_email')
             metadata = session_data.get('metadata', {})
+            completed_at = datetime.now(timezone.utc).isoformat()
+            amount_total = float(session_data.get('amount_total', 0)) / 100
             
             # Update payment record
             if db is not None:
@@ -4861,9 +4872,27 @@ async def handle_stripe_webhook(request: Request):
                     {
                         "$set": {
                             "status": "succeeded",
-                            "completed_at": datetime.now(timezone.utc).isoformat()
+                            "completed_at": completed_at
                         }
                     }
+                )
+                
+                await db.sales.update_one(
+                    {"stripe_session_id": session_id},
+                    {
+                        "$set": {
+                            "sale_id": str(uuid.uuid4()),
+                            "product_id": metadata.get('product_id'),
+                            "customer_email": customer_email,
+                            "amount": amount_total,
+                            "status": "completed",
+                            "source": "main-backend",
+                            "created_at": completed_at,
+                            "payment_intent_id": payment_intent_id,
+                            "stripe_session_id": session_id,
+                        }
+                    },
+                    upsert=True,
                 )
                 
                 # Update product stats
@@ -4874,9 +4903,7 @@ async def handle_stripe_webhook(request: Request):
                         {
                             "$inc": {
                                 "conversions": 1,
-                                "revenue": float(
-                                    session_data.get('amount_total', 0)
-                                ) / 100
+                                "revenue": amount_total
                             }
                         }
                     )
@@ -4893,7 +4920,7 @@ async def handle_stripe_webhook(request: Request):
                         "product_id": product_id,
                         "email": customer_email,
                         "stripe_session_id": session_id,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": completed_at,
                         "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
                         "download_count": 0,
                     })
@@ -5439,6 +5466,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Error monitoring middleware
+# ---------------------------------------------------------------------------
+from starlette.middleware.base import BaseHTTPMiddleware
+import time as _time
+
+class ErrorMonitoringMiddleware(BaseHTTPMiddleware):
+    """Logs every request with timing, and captures 5xx errors with full detail."""
+
+    async def dispatch(self, request, call_next):
+        start = _time.perf_counter()
+        try:
+            response = await call_next(request)
+            elapsed = (_time.perf_counter() - start) * 1000
+            if response.status_code >= 500:
+                logging.getLogger("monitor").error(
+                    "5xx | %s %s | %d | %.0fms",
+                    request.method, request.url.path, response.status_code, elapsed,
+                )
+            elif response.status_code >= 400:
+                logging.getLogger("monitor").warning(
+                    "4xx | %s %s | %d | %.0fms",
+                    request.method, request.url.path, response.status_code, elapsed,
+                )
+            else:
+                logging.getLogger("monitor").info(
+                    "OK  | %s %s | %d | %.0fms",
+                    request.method, request.url.path, response.status_code, elapsed,
+                )
+            return response
+        except Exception as exc:
+            elapsed = (_time.perf_counter() - start) * 1000
+            logging.getLogger("monitor").exception(
+                "ERR | %s %s | %.0fms | %s", request.method, request.url.path, elapsed, exc,
+            )
+            raise
+
+app.add_middleware(ErrorMonitoringMiddleware)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -5449,6 +5515,7 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_services():
     """Initialize production factory services on startup"""
+    app.state.db = db
     await init_services(db)
     logger.info("✅ Production factory services initialized")
     # Start automated 2-hour product generation cycle

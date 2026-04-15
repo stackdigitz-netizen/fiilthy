@@ -1,104 +1,70 @@
 """
 Opportunity Scouting AI
-Automatically identifies trending niches, keywords, and products
+Automatically identifies trending niches, keywords, and products.
+Uses standard OpenAI SDK.
 """
 import asyncio
+import json
+import logging
 from typing import List, Dict, Any
 import random
 from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
-
-# Try to import the LLM library, but make it optional
-try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    HAS_LLM = True
-except ImportError:
-    HAS_LLM = False
+import openai
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+
 
 class OpportunityScout:
     def __init__(self):
-        self.api_key = os.environ.get('EMERGENT_LLM_KEY')
+        self.api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('OPENAI_KEY') or ''
         
     async def scout_opportunities(self, sources: List[str] = None) -> List[Dict[str, Any]]:
-        """
-        Scout for trending opportunities across various sources
-        
-        Args:
-            sources: List of sources to analyze (social media, marketplaces, etc.)
-            
-        Returns:
-            List of opportunity dictionaries with scores and recommendations
-        """
         if sources is None:
             sources = ["social media trends", "digital product marketplaces", "search trends"]
         
-        # If LLM library not available, return mock data for testing
-        if not HAS_LLM:
-            return self._get_mock_opportunities()
+        if not self.api_key:
+            return self._get_fallback_opportunities()
         
-        # Initialize AI chat
-        chat = LlmChat(
-            api_key=self.api_key,
-            session_id=f"opportunity-scout-{datetime.now().timestamp()}",
-            system_message="You are an expert market researcher and trend analyst specializing in identifying profitable digital product opportunities. Analyze trends and provide data-driven insights."
-        ).with_model("openai", "gpt-5.2")
+        client = openai.OpenAI(api_key=self.api_key)
         
-        # Create detailed prompt
-        prompt = f"""
-Analyze current market trends and identify 5 high-potential opportunities for digital products (eBooks, courses, templates, planners).
+        prompt = f"""Analyze current market trends and identify 5 high-potential opportunities for digital products (eBooks, courses, templates, planners).
 
-For each opportunity, provide:
-1. Niche name (specific and actionable)
-2. Trend score (0.0-1.0 based on growth potential)
-3. 3-5 relevant keywords
-4. 2-3 suggested product titles
-5. Market size (Small/Growing/Large/Very Large)
-6. Competition level (Low/Medium/High)
+For each opportunity, provide niche name, trend score (0.0-1.0), 3-5 keywords, 2-3 product titles, market size, and competition level.
 
-Focus on niches that are:
-- Currently trending or emerging
-- Have proven monetization potential
-- Suitable for digital products
-- Not oversaturated
+Focus on niches that are trending, have monetization potential, and aren't oversaturated.
+Sources: {', '.join(sources)}
 
-Sources to consider: {', '.join(sources)}
+Return ONLY valid JSON (no markdown fences):
+{{"opportunities": [
+  {{"niche": "Niche Name", "trend_score": 0.85, "keywords": ["kw1","kw2","kw3"], "suggested_products": ["Title1","Title2"], "market_size": "Large", "competition_level": "Medium"}}
+]}}"""
 
-Return your analysis in this exact JSON format:
-{{
-  "opportunities": [
-    {{
-      "niche": "Niche Name",
-      "trend_score": 0.85,
-      "keywords": ["keyword1", "keyword2", "keyword3"],
-      "suggested_products": ["Product Title 1", "Product Title 2"],
-      "market_size": "Large",
-      "competition_level": "Medium"
-    }}
-  ]
-}}
-"""
-        
         try:
-            # Send message to AI
-            message = UserMessage(text=prompt)
-            response = await chat.send_message(message)
+            def _call():
+                return client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are an expert market researcher specializing in profitable digital product opportunities."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.8,
+                    max_tokens=1000,
+                )
+
+            response = await asyncio.to_thread(_call)
+            text = response.choices[0].message.content.strip()
+            if "```" in text:
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.split("```")[0].strip()
             
-            # Parse response
-            import json
-            # Extract JSON from response (handle markdown code blocks)
-            response_text = response.strip()
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-            
-            data = json.loads(response_text)
+            data = json.loads(text)
             opportunities = data.get("opportunities", [])
             
-            # Enrich with additional metadata
             for opp in opportunities:
                 opp["id"] = f"opp-{random.randint(1000, 9999)}"
                 opp["status"] = "identified"
@@ -107,12 +73,10 @@ Return your analysis in this exact JSON format:
             return opportunities
             
         except Exception as e:
-            print(f"Error in opportunity scouting: {str(e)}")
-            # Return fallback opportunities if AI fails
+            logger.error("Opportunity scouting error: %s", e)
             return self._get_fallback_opportunities()
     
     def _get_fallback_opportunities(self) -> List[Dict[str, Any]]:
-        """Fallback opportunities if AI fails"""
         return [
             {
                 "id": f"opp-{random.randint(1000, 9999)}",
@@ -121,44 +85,6 @@ Return your analysis in this exact JSON format:
                 "keywords": ["AI tools", "content creation", "automation"],
                 "suggested_products": ["AI Content Guide", "Creator Toolkit"],
                 "market_size": "Large",
-                "competition_level": "Medium",
-                "status": "identified",
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-        ]
-    
-    def _get_mock_opportunities(self) -> List[Dict[str, Any]]:
-        """Mock opportunities for testing when LLM library is not available"""
-        return [
-            {
-                "id": f"opp-{random.randint(1000, 9999)}",
-                "niche": "AI Automation for Small Businesses",
-                "trend_score": 0.92,
-                "keywords": ["AI automation", "business tools", "productivity", "SMB"],
-                "suggested_products": ["AI Automation Playbook", "Business Automation Course"],
-                "market_size": "Large",
-                "competition_level": "Medium",
-                "status": "identified",
-                "created_at": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": f"opp-{random.randint(1000, 9999)}",
-                "niche": "Digital Marketing for E-commerce",
-                "trend_score": 0.85,
-                "keywords": ["e-commerce", "digital marketing", "social media", "conversion"],
-                "suggested_products": ["E-commerce Marketing Guide", "Social Selling Masterclass"],
-                "market_size": "Very Large",
-                "competition_level": "High",
-                "status": "identified",
-                "created_at": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": f"opp-{random.randint(1000, 9999)}",
-                "niche": "Personal Branding for Tech Professionals",
-                "trend_score": 0.88,
-                "keywords": ["personal branding", "tech career", "thought leadership", "networking"],
-                "suggested_products": ["Tech Personal Branding Blueprint", "LinkedIn Mastery"],
-                "market_size": "Growing",
                 "competition_level": "Medium",
                 "status": "identified",
                 "created_at": datetime.now(timezone.utc).isoformat()

@@ -56,7 +56,7 @@ class ProductRankingEngine:
         """
         
         try:
-            if not self.db:
+            if self.db is None:
                 logger.warning("Database not configured")
                 return []
             
@@ -152,7 +152,7 @@ class ProductRankingEngine:
         """Get products with highest velocity (growing fastest)"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return []
             
             # Compare sales velocity (7d vs previous 7d)
@@ -237,7 +237,7 @@ class ProductRankingEngine:
         """Get products with best profit margins"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return []
             
             products = await self.db.products.find(
@@ -351,7 +351,7 @@ class ProductRankingEngine:
         """Get comprehensive health metrics for a product"""
         
         try:
-            if not self.db:
+            if self.db is None:
                 return {}
             
             product = await self.db.products.find_one(

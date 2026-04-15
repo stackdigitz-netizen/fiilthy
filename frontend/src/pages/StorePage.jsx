@@ -5,7 +5,22 @@ import {
   ArrowLeft, Package,
 } from 'lucide-react';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'https://fiilthy-backend.railway.app';
+const API = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://store-backend-livid.vercel.app';
+
+async function requestDownloadLink(sessionId, customerEmail) {
+  const res = await fetch(`${API}/api/store/download-link/${sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: customerEmail }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.detail || 'Download link is not ready yet');
+  }
+  return payload;
+}
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
@@ -19,6 +34,7 @@ export default function StorePage() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const isSuccess = params.get('success') === '1';
+  const sessionId = params.get('session_id');
 
   useEffect(() => {
     fetch(`${API}/api/store/products`)
@@ -29,21 +45,23 @@ export default function StorePage() {
   }, []);
 
   const handleBuy = async (product) => {
-    if (!email) {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
       setEmailError('Enter your email to continue');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setEmailError('Please enter a valid email address');
       return;
     }
     setEmailError('');
     setCheckoutLoading(product.id);
     try {
+      window.localStorage.setItem('storeCheckoutEmail', normalizedEmail);
       const res = await fetch(`${API}/api/store/checkout/${product.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_email: email, quantity: 1 }),
+        body: JSON.stringify({ customer_email: normalizedEmail, quantity: 1 }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -58,7 +76,7 @@ export default function StorePage() {
     }
   };
 
-  if (isSuccess) return <SuccessPage />;
+  if (isSuccess) return <SuccessPage sessionId={sessionId} />;
 
   return (
     <div style={s.page}>
@@ -150,7 +168,67 @@ export default function StorePage() {
 
 // ─── Success Page ────────────────────────────────────────────────────────────
 
-function SuccessPage() {
+function SuccessPage({ sessionId }) {
+  const [email, setEmail] = useState(() => window.localStorage.getItem('storeCheckoutEmail') || '');
+  const [downloadData, setDownloadData] = useState(null);
+  const [loading, setLoading] = useState(Boolean(sessionId));
+  const [error, setError] = useState('');
+
+  const unlockDownload = async () => {
+    if (!sessionId) {
+      setError('Missing checkout session. Contact support if you were charged.');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Enter the purchase email to unlock your download.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const payload = await requestDownloadLink(sessionId, email.trim());
+      window.localStorage.setItem('storeCheckoutEmail', email.trim());
+      setDownloadData(payload);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!sessionId || !email.trim()) {
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    setError('');
+
+    requestDownloadLink(sessionId, email.trim())
+      .then((payload) => {
+        if (cancelled) return;
+        window.localStorage.setItem('storeCheckoutEmail', email.trim());
+        setDownloadData(payload);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email, sessionId]);
+
   return (
     <div style={{ ...s.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <div style={s.successBox}>
@@ -161,14 +239,58 @@ function SuccessPage() {
         <p style={{ color: '#aaa', fontSize: 16, lineHeight: 1.6, marginBottom: 24 }}>
           Your purchase is confirmed.
           <br />
-          We've emailed your download link — check your inbox (and spam folder).
+          Your download can be unlocked right here, and we'll email it when delivery is configured.
         </p>
+        <div style={{ marginBottom: 16, textAlign: 'left' }}>
+          <p style={{ color: '#d1d5db', fontSize: 13, marginBottom: 8 }}>Purchase email</p>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={event => {
+              setEmail(event.target.value);
+              setError('');
+            }}
+            style={{
+              width: '100%',
+              background: '#111827',
+              color: '#fff',
+              border: '1px solid #223047',
+              borderRadius: 10,
+              padding: '12px 14px',
+              outline: 'none',
+              fontSize: 14,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
         <div style={s.successNote}>
           <Mail size={18} style={{ color: '#00e5ff' }} />
-          <span>Download link valid for 7 days — check your email</span>
+          <span>Download link stays valid for 7 days from purchase</span>
         </div>
+        {downloadData ? (
+          <button
+            style={{ ...s.buyBtn, width: '100%', justifyContent: 'center', marginTop: 18, padding: '14px 18px' }}
+            onClick={() => { window.location.href = downloadData.download_url; }}
+          >
+            <Download size={16} /> Download {downloadData.product_title}
+          </button>
+        ) : (
+          <button
+            style={{ ...s.buyBtn, width: '100%', justifyContent: 'center', marginTop: 18, padding: '14px 18px', opacity: loading ? 0.75 : 1 }}
+            onClick={unlockDownload}
+            disabled={loading}
+          >
+            <Lock size={16} /> {loading ? 'Unlocking…' : 'Unlock My Download'}
+          </button>
+        )}
+        {error && (
+          <p style={{ color: '#fca5a5', fontSize: 13, lineHeight: 1.5, marginTop: 12 }}>
+            {error}
+          </p>
+        )}
         <button
-          style={s.backBtn}
+          style={{ ...s.backBtn, marginTop: 14 }}
           onClick={() => window.location.href = '/store'}
         >
           <ArrowLeft size={14} /> Browse More Products

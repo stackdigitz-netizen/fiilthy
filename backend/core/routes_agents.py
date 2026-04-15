@@ -43,6 +43,12 @@ async def get_activity(limit: int = 60):
     return {"activity": await _orch().get_recent_activity(limit)}
 
 
+@router.get("/pipeline")
+async def get_pipeline(limit: int = 6):
+    o = _orch()
+    return {"products": await o.get_top_products(limit)}
+
+
 # ─── Division Control ─────────────────────────────────────────
 
 @router.post("/start-all")

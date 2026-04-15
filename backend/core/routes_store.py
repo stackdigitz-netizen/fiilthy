@@ -5,6 +5,7 @@ Endpoints that make REAL MONEY:
   GET  /api/store/products           – public listing (no auth)
   GET  /api/store/products/{id}      – single product (no auth)
   POST /api/store/checkout/{id}      – Stripe checkout session (no auth)
+    POST /api/store/download-link/{id} – direct success-page retrieval (no auth)
   GET  /api/store/download/{token}   – file delivery after payment (no auth)
   POST /api/store/resend/{session_id}– resend download link (no auth)
 """
@@ -30,28 +31,29 @@ router = APIRouter(prefix="/api/store", tags=["store"])
 
 SAMPLE_PRODUCTS = [
     {
-        "id": "fiilthy-001",
-        "title": "AI Passive Income Blueprint 2025",
-        "description": "The complete system to build $5K/month in passive income using AI tools. Zero to first dollar, step-by-step.",
-        "price": 97.0,
-        "originalPrice": 197.0,
-        "type": "guide",
-        "cover": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&q=80",
+        "id": "flagship-ai-offer-engine",
+        "title": "AI Offer Engine for Solo Operators",
+        "description": "Turn one skill into a premium digital offer, a fast checkout flow, and an AI-assisted sales engine you can run without a team.",
+        "price": 79.0,
+        "originalPrice": 149.0,
+        "type": "blueprint",
+        "cover": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&q=80",
         "rating": 4.9,
-        "reviews": 47,
-        "downloads": 1834,
+        "reviews": 0,
+        "downloads": 0,
         "includes": [
-            "50-page step-by-step guide",
-            "Income tracker spreadsheet",
-            "AI prompts toolkit (200+ prompts)",
-            "Private community access",
-            "30-day action plan",
+            "High-ticket offer design worksheet",
+            "AI prompts for positioning and sales copy",
+            "7-day launch sprint plan",
+            "Delivery and fulfillment checklist",
+            "Upsell and retention framework",
         ],
-        "tags": ["AI", "Passive Income", "Business"],
-        "fileSize": "18 MB",
-        "updated": "2025-01-15",
+        "tags": ["AI", "Offers", "Sales", "Solo Operator"],
+        "fileSize": "14 MB",
+        "updated": "2026-04-14",
         "product_type": "ebook",
         "status": "published",
+        "featured": True,
     },
     {
         "id": "fiilthy-002",
@@ -343,6 +345,16 @@ Success in ANY income model is built through consistent, compounding action over
 """.strip()
 
 
+def _store_sort_key(product: dict):
+    return (
+        1 if product.get("featured") else 0,
+        float(product.get("launch_score") or product.get("opportunity_score") or product.get("qc_score") or 0),
+        float(product.get("revenue") or 0),
+        int(product.get("conversions") or product.get("downloads") or 0),
+        str(product.get("updated") or product.get("created_at") or ""),
+    )
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 
@@ -353,7 +365,7 @@ async def get_store_products(limit: int = 50):
     try:
         if db is not None:
             products = await db.products.find(
-                {"status": {"$in": ["published", "ready"]}},
+                {"status": {"$in": ["published", "ready", "approved"]}},
                 {"_id": 0},
             ).sort("created_at", -1).limit(limit).to_list(limit)
 
@@ -376,13 +388,22 @@ async def get_store_products(limit: int = 50):
                         "rating": float(p.get("rating", 4.8)),
                         "reviews": int(p.get("reviews", 0)),
                         "downloads": int(p.get("downloads", 0)),
+                        "conversions": int(p.get("conversions", 0)),
                         "includes": p.get("includes") or p.get("features") or [],
                         "tags": p.get("tags") or p.get("keywords") or [],
                         "fileSize": p.get("fileSize", "5 MB"),
                         "updated": str(p.get("updated") or p.get("created_at", ""))[:10],
                         "status": p.get("status"),
+                        "featured": bool(p.get("featured")),
+                        "launch_score": float(p.get("launch_score") or 0),
+                        "revenue": float(p.get("revenue") or 0),
                     })
-                return result
+                ranked_products = sorted(result, key=_store_sort_key, reverse=True)
+                featured_samples = [
+                    product for product in SAMPLE_PRODUCTS
+                    if product.get("featured") and not any(existing.get("id") == product.get("id") for existing in ranked_products)
+                ]
+                return (featured_samples + ranked_products)[:limit]
     except Exception as e:
         logger.warning(f"DB error fetching store products: {e}")
 
@@ -623,6 +644,56 @@ async def download_product(token: str):
 
 class ResendRequest(BaseModel):
     email: str
+
+
+class DownloadLinkRequest(BaseModel):
+    email: str
+
+
+@router.post("/download-link/{session_id}")
+async def get_download_link(session_id: str, body: DownloadLinkRequest):
+    """
+    Return a direct download URL for a completed Stripe session.
+    This lets the success page unlock the product even if email delivery lags.
+    """
+    db = _db()
+    if db is None:
+        raise HTTPException(status_code=503, detail="Service unavailable")
+
+    record = await db.downloads.find_one({"stripe_session_id": session_id})
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail="Your download is not ready yet. Refresh this page in a few seconds.",
+        )
+
+    request_email = body.email.lower().strip()
+    record_email = str(record.get("email", "")).lower().strip()
+    if not request_email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    if record_email and record_email != request_email:
+        raise HTTPException(status_code=403, detail="Email does not match this order")
+
+    token = record.get("token")
+    if not token:
+        raise HTTPException(status_code=404, detail="Download token not found")
+
+    product_title = "Your Product"
+    product_id = record.get("product_id")
+    try:
+        product = await db.products.find_one({"id": product_id}, {"_id": 0})
+        if product:
+            product_title = product.get("title", product_title)
+    except Exception:
+        pass
+
+    backend_url = os.environ.get("BACKEND_URL", "https://fiilthy-backend.railway.app")
+    return {
+        "success": True,
+        "product_title": product_title,
+        "download_url": f"{backend_url}/api/store/download/{token}",
+        "expires_at": record.get("expires_at"),
+    }
 
 
 @router.post("/resend/{session_id}")

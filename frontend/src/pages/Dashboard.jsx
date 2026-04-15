@@ -186,7 +186,7 @@ const Dashboard = () => {
               <Link className="btn btn-primary" to="/analytics">
                 {loading ? 'Connecting...' : 'Open Analytics'}
               </Link>
-              <Link className="btn btn-primary" to="/products" style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}>
+              <Link className="btn btn-primary" to="/" style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}>
                 📦 View Products
               </Link>
             </div>
