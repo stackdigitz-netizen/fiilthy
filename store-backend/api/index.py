@@ -334,6 +334,24 @@ async def handle_webhook(request: Request):
                 {'$inc': {'conversions': 1, 'revenue': amount}},
             )
 
+            # Update learning engine with performance data
+            try:
+                from learning_engine import LearningEngine
+                learning_engine = LearningEngine(db)
+                await learning_engine.record_product_performance(
+                    product_id=product_id,
+                    metrics={
+                        "revenue": amount,
+                        "conversions": 1,
+                        "clicks": 0,  # Not tracked in this simple implementation
+                        "engagement_score": 1.0,  # Sale indicates high engagement
+                        "customer_satisfaction": 0.9,  # Assume high satisfaction for completed purchases
+                        "retention_rate": 1.0  # One-time purchase
+                    }
+                )
+            except Exception as learn_exc:
+                print(f"Warning: Failed to update learning engine: {learn_exc}")
+
     return {'status': 'received'}
 
 

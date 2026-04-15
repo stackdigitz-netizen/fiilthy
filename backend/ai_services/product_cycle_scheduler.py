@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 from .product_quality_engine import ProductQualityEngine, QCStatus
 from .real_product_generator import RealProductGenerator
 from .opportunity_scout import OpportunityScout
-from .gumroad_publisher import GumroadPublisher
+from .learning_engine import LearningEngine
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ class ProductCycleScheduler:
         self.generator = RealProductGenerator()
         self.scout = OpportunityScout()
         self.publisher = GumroadPublisher()
+        self.learning_engine = LearningEngine(db) if db is not None else None
         self._running = False
         self._current_cycle: Optional[Dict] = None
 
@@ -232,6 +233,22 @@ class ProductCycleScheduler:
                             raw["gumroad_url"] = pub_result.get("url")
                             raw["status"] = "published"
                             logger.info("  Published to Gumroad: %s", pub_result.get("url"))
+
+                            # Record initial performance data for learning
+                            if self.learning_engine:
+                                try:
+                                    await self.learning_engine.record_product_performance(
+                                        product_id=raw["id"],
+                                        metrics={
+                                            "revenue": 0.0,
+                                            "conversions": 0,
+                                            "clicks": 0,
+                                            "engagement_score": 0.5,  # Neutral starting score
+                                            "published": True
+                                        }
+                                    )
+                                except Exception as learn_exc:
+                                    logger.warning("Failed to record initial performance: %s", learn_exc)
                         else:
                             logger.warning("  Gumroad publish failed: %s", pub_result.get("error"))
                     except Exception as pub_exc:
@@ -259,8 +276,29 @@ class ProductCycleScheduler:
         return None
 
     async def _generate_product(self, niche: str, product_type: str) -> Optional[Dict]:
-        """Call the real product generator."""
+        """Call the real product generator with learning-optimized strategies."""
         try:
+            # Get market opportunity data for learning
+            opportunity_data = {
+                "niche": niche,
+                "product_type": product_type,
+                "trend_score": 0.8,  # Default high score for scheduled generation
+                "keywords": [niche, product_type],
+                "competition_level": "medium",
+                "market_size": "growing"
+            }
+
+            # Get optimal strategy from learning engine
+            optimal_strategy = None
+            if self.learning_engine:
+                try:
+                    optimal_strategy = await self.learning_engine.get_optimal_product_strategy(opportunity_data)
+                    logger.info("Using learned strategy for %s %s: %s", niche, product_type,
+                              optimal_strategy.get("strategy", "No strategy available")[:100])
+                except Exception as e:
+                    logger.warning("Learning engine strategy failed: %s", e)
+
+            # Generate product based on type
             if product_type == "ebook":
                 product = await self.generator.generate_complete_ebook(
                     niche=niche,
@@ -282,6 +320,10 @@ class ProductCycleScheduler:
                 )
 
             if product:
+                # Apply learning insights to product generation
+                if optimal_strategy:
+                    product = await self._apply_learning_strategy(product, optimal_strategy, niche, product_type)
+
                 title = product.get("title") or product.get("name") or f"{niche.title()} {product_type.title()} Playbook"
                 description = product.get("description") or (
                     f"Build a stronger {niche} offer with a structured {product_type} designed for buyers who need a faster result. "
@@ -336,6 +378,49 @@ class ProductCycleScheduler:
         except Exception as exc:
             logger.error("Product generation error: %s", exc)
         return self._fallback_product(niche, product_type)
+
+    async def _apply_learning_strategy(self, product: Dict[str, Any], strategy: Dict[str, Any],
+                                     niche: str, product_type: str) -> Dict[str, Any]:
+        """Apply learned strategy insights to improve the generated product."""
+        try:
+            strategy_text = strategy.get("strategy", "")
+
+            # Extract key insights from strategy
+            if "price" in strategy_text.lower() or "pricing" in strategy_text.lower():
+                # Adjust price based on learning
+                if "premium" in strategy_text.lower():
+                    product["price"] = min(product.get("price", 49.0) * 1.5, 199.0)
+                elif "budget" in strategy_text.lower() or "affordable" in strategy_text.lower():
+                    product["price"] = max(product.get("price", 49.0) * 0.8, 19.0)
+
+            # Improve title based on successful patterns
+            if "title" in strategy_text.lower() or "naming" in strategy_text.lower():
+                current_title = product.get("title", "")
+                if "playbook" in strategy_text.lower():
+                    if "playbook" not in current_title.lower():
+                        product["title"] = f"{current_title} Playbook"
+                elif "masterclass" in strategy_text.lower():
+                    product["title"] = f"{current_title} Masterclass"
+
+            # Enhance description with learned elements
+            if "description" in strategy_text.lower() or "messaging" in strategy_text.lower():
+                current_desc = product.get("description", "")
+                if "results" in strategy_text.lower() and "results" not in current_desc.lower():
+                    product["description"] += " Focus on real results and measurable outcomes."
+
+            # Apply audience targeting insights
+            if "audience" in strategy_text.lower() or "target" in strategy_text.lower():
+                if "beginners" in strategy_text.lower():
+                    product["target_audience"] = "Complete beginners looking to start their journey"
+                elif "experts" in strategy_text.lower():
+                    product["target_audience"] = "Experienced professionals seeking advanced strategies"
+
+            logger.info("Applied learning strategy to product: %s", product.get("title", "")[:50])
+
+        except Exception as e:
+            logger.warning("Failed to apply learning strategy: %s", e)
+
+        return product
 
     def _fallback_product(self, niche: str, product_type: str) -> Dict[str, Any]:
         title = f"{niche.title()} {product_type.title()} Revenue Playbook"

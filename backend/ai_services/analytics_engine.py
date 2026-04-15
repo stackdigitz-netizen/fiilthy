@@ -1,45 +1,50 @@
 """
 Advanced Analytics Engine
-Predictive analytics and business intelligence
+Predictive analytics and business intelligence with AI-powered insights
 """
 import asyncio
 from typing import Dict, Any, List
 from datetime import datetime, timezone, timedelta
 import random
 import os
+import openai
+from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 load_dotenv()
 
 class AnalyticsEngine:
-    def __init__(self):
-        self.api_key = os.environ.get('EMERGENT_LLM_KEY')
-    
-    async def generate_insights(self, products: List[Dict[str, Any]], 
+    def __init__(self, db_client: Optional[AsyncIOMotorClient] = None):
+        self.db = db_client
+        self.api_key = os.environ.get('OPENAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    async def generate_insights(self, products: List[Dict[str, Any]],
                                opportunities: List[Dict[str, Any]],
                                revenue_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Generate AI-powered business insights
-        
+
         Args:
             products: List of products
             opportunities: List of opportunities
             revenue_data: Revenue metrics
-            
+
         Returns:
             Insights and predictions
         """
-        
+
         insights = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "product_performance": await self._analyze_product_performance(products),
             "revenue_forecast": await self._forecast_revenue(products, revenue_data),
             "opportunity_analysis": await self._analyze_opportunities(opportunities),
             "recommendations": await self._generate_recommendations(products, opportunities),
-            "kpis": self._calculate_kpis(products, revenue_data)
+            "kpis": self._calculate_kpis(products, revenue_data),
+            "learning_insights": await self._generate_learning_insights(products, opportunities)
         }
-        
+
         return insights
     
     async def _analyze_product_performance(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -219,3 +224,72 @@ class AnalyticsEngine:
             "total_products": len(products),
             "products_published": len([p for p in products if p.get('status') == 'published'])
         }
+
+    async def _generate_learning_insights(self, products: List[Dict[str, Any]],
+                                         opportunities: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate AI-powered learning insights for continuous improvement"""
+        try:
+            # Analyze product performance patterns
+            successful_products = [p for p in products if p.get('revenue', 0) > 10]
+            failed_products = [p for p in products if p.get('revenue', 0) <= 10 and p.get('status') == 'published']
+
+            prompt = f"""
+            Analyze product performance data and generate learning insights for continuous improvement.
+
+            Successful Products ({len(successful_products)}):
+            {json.dumps([{
+                'title': p.get('title', ''),
+                'revenue': p.get('revenue', 0),
+                'category': p.get('category', ''),
+                'price': p.get('price', 0)
+            } for p in successful_products[:5]], indent=2)}
+
+            Failed Products ({len(failed_products)}):
+            {json.dumps([{
+                'title': p.get('title', ''),
+                'revenue': p.get('revenue', 0),
+                'category': p.get('category', ''),
+                'price': p.get('price', 0)
+            } for p in failed_products[:5]], indent=2)}
+
+            Market Opportunities ({len(opportunities)}):
+            {json.dumps([{
+                'niche': o.get('niche', ''),
+                'trend_score': o.get('trend_score', 0),
+                'keywords': o.get('keywords', [])[:3]
+            } for o in opportunities[:3]], indent=2)}
+
+            Generate insights on:
+            1. What patterns lead to successful products
+            2. Common failure modes to avoid
+            3. Market opportunities to prioritize
+            4. Pricing strategies that work
+            5. Content approaches that resonate
+            """
+
+            response = await openai.ChatCompletion.acreate(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.3
+            )
+
+            insights_text = response.choices[0].message.content
+
+            return {
+                "insights": insights_text,
+                "patterns_identified": len(successful_products),
+                "improvement_areas": len(failed_products),
+                "generated_at": datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            return {
+                "insights": "Unable to generate AI insights due to API error",
+                "error": str(e),
+                "fallback_patterns": [
+                    "High-value products tend to perform better",
+                    "Clear, specific titles attract more buyers",
+                    "Practical content outperforms theoretical content"
+                ]
+            }

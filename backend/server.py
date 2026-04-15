@@ -37,7 +37,7 @@ from ai_services.analytics_engine import AnalyticsEngine
 from ai_services.real_product_generator import RealProductGenerator
 from ai_services.autonomous_engine import AutonomousEngine
 from ai_services.gumroad_publisher import GumroadPublisher
-from ai_services.key_vault import SecureKeyVault
+from ai_services.learning_engine import LearningEngine
 from ai_services.opportunity_hunter import OpportunityHunter, ProductDiscoveryEngine
 from ai_services.project_manager import ProjectFileManager, PublishingGuide
 from ai_services.ai_assistant import AIAssistant
@@ -195,7 +195,8 @@ sales_launch_ai = SalesLaunchAI()
 affiliate_manager = AffiliateManager()
 marketplace_integrations = MarketplaceIntegrations()
 compliance_checker = ComplianceChecker()
-analytics_engine = AnalyticsEngine()
+analytics_engine = AnalyticsEngine(db)
+learning_engine = LearningEngine(db) if db is not None else None
 real_product_generator = RealProductGenerator()
 gumroad_publisher = GumroadPublisher()
 key_vault = SecureKeyVault(db)
@@ -5433,6 +5434,168 @@ async def record_sale(product_id: str,
         return result
     except Exception as e:
         logger.error(f"Failed to record sale: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== LEARNING & EVOLUTION ENDPOINTS ====================
+
+class PerformanceMetrics(BaseModel):
+    revenue: float = 0.0
+    conversions: int = 0
+    clicks: int = 0
+    engagement_score: float = 0.0
+    customer_satisfaction: float = 0.0
+    retention_rate: float = 0.0
+
+class ProductVariant(BaseModel):
+    variant_id: str
+    title: str
+    description: str
+    price: float
+    category: str
+    target_audience: str
+
+@api_router.post("/learning/record-performance")
+async def record_product_performance(product_id: str, metrics: PerformanceMetrics):
+    """
+    Record product performance metrics for machine learning
+
+    This data is used to improve future product generation strategies
+    """
+    try:
+        if learning_engine is None:
+            raise HTTPException(status_code=400, detail="Learning engine not configured")
+
+        await learning_engine.record_product_performance(
+            product_id=product_id,
+            metrics=metrics.dict()
+        )
+
+        return {
+            "success": True,
+            "message": "Performance data recorded for learning",
+            "product_id": product_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/learning/optimal-strategy")
+async def get_optimal_product_strategy(opportunity: Dict[str, Any]):
+    """
+    Get AI-optimized product generation strategy based on learned patterns
+
+    Uses historical performance data to recommend the best approach
+    """
+    try:
+        if learning_engine is None:
+            raise HTTPException(status_code=400, detail="Learning engine not configured")
+
+        strategy = await learning_engine.get_optimal_product_strategy(opportunity)
+
+        return {
+            "success": True,
+            "strategy": strategy,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/learning/ab-test")
+async def run_ab_test(variants: List[ProductVariant]):
+    """
+    Run A/B testing on product variants to determine optimal approach
+
+    Tests different product variations and learns which performs best
+    """
+    try:
+        if learning_engine is None:
+            raise HTTPException(status_code=400, detail="Learning engine not configured")
+
+        test_result = await learning_engine.run_ab_test([v.dict() for v in variants])
+
+        return {
+            "success": True,
+            "test_id": test_result["test_id"],
+            "groups": test_result["groups"],
+            "expected_completion": test_result["expected_completion"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/learning/ab-results/{test_id}")
+async def get_ab_test_results(test_id: str):
+    """
+    Get A/B test results and winner determination
+
+    Analyzes test performance and provides insights for future optimization
+    """
+    try:
+        if learning_engine is None:
+            raise HTTPException(status_code=400, detail="Learning engine not configured")
+
+        results = await learning_engine.analyze_ab_results(test_id)
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/learning/predict-success")
+async def predict_product_success(product_features: Dict[str, Any]):
+    """
+    Predict product success probability using learned model
+
+    Analyzes product characteristics against historical performance data
+    """
+    try:
+        if learning_engine is None:
+            raise HTTPException(status_code=400, detail="Learning engine not configured")
+
+        prediction = await learning_engine.predict_product_success(product_features)
+
+        return {
+            "success": True,
+            "prediction": prediction
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/learning/analytics")
+async def get_learning_analytics():
+    """
+    Get comprehensive learning analytics and evolution insights
+
+    Shows how the system is improving over time
+    """
+    try:
+        if db is None:
+            raise HTTPException(status_code=400, detail="Database not configured")
+
+        # Get learning data
+        total_learned = await db.learning_data.count_documents({})
+        ab_tests = await db.learning_data.count_documents({"type": "ab_test_learning"})
+        performance_records = await db.performance_collection.count_documents({})
+
+        # Get recent insights
+        recent_insights = await db.learning_data.find(
+            {"type": "ab_test_learning"},
+            {"_id": 0}
+        ).sort("timestamp", -1).limit(5).to_list(length=None)
+
+        return {
+            "success": True,
+            "analytics": {
+                "total_learning_events": total_learned,
+                "ab_tests_completed": ab_tests,
+                "performance_records": performance_records,
+                "system_evolution": "actively_learning" if total_learned > 0 else "initializing",
+                "recent_insights": recent_insights
+            }
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
