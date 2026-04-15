@@ -15,6 +15,7 @@ from .product_quality_engine import ProductQualityEngine, QCStatus
 from .real_product_generator import RealProductGenerator
 from .opportunity_scout import OpportunityScout
 from .learning_engine import LearningEngine
+from .gumroad_publisher import GumroadPublisher
 
 logger = logging.getLogger(__name__)
 
