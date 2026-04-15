@@ -38,6 +38,7 @@ from ai_services.real_product_generator import RealProductGenerator
 from ai_services.autonomous_engine import AutonomousEngine
 from ai_services.gumroad_publisher import GumroadPublisher
 from ai_services.learning_engine import LearningEngine
+from ai_services.key_vault import SecureKeyVault
 from ai_services.opportunity_hunter import OpportunityHunter, ProductDiscoveryEngine
 from ai_services.project_manager import ProjectFileManager, PublishingGuide
 from ai_services.ai_assistant import AIAssistant

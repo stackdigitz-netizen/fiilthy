@@ -3,7 +3,7 @@ Advanced Analytics Engine
 Predictive analytics and business intelligence with AI-powered insights
 """
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 import random
 import os
