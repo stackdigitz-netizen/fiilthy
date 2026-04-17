@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ShoppingCart, Download, Star, Check, Zap, Lock, Mail, X,
@@ -7,7 +7,33 @@ import {
 
 const API = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : (process.env.REACT_APP_BACKEND_URL || 'https://store-backend-livid.vercel.app');
+  : 'https://backend-seven-beta-88.vercel.app';
+
+const CACHE_KEY = 'store_products_v3';
+const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+
+function normalizeProductText(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function dedupeProducts(products) {
+  const seen = new Set();
+
+  return products.filter((product) => {
+    const dedupeKey = [
+      normalizeProductText(product.title),
+      normalizeProductText(product.type || product.product_type),
+      Number(product.price || 0).toFixed(2),
+    ].join('::');
+
+    if (seen.has(dedupeKey)) {
+      return false;
+    }
+
+    seen.add(dedupeKey);
+    return true;
+  });
+}
 
 async function requestDownloadLink(sessionId, customerEmail) {
   const res = await fetch(`${API}/api/store/download-link/${sessionId}`, {
@@ -37,10 +63,7 @@ export default function StorePage() {
   const isSuccess = params.get('success') === '1';
   const sessionId = params.get('session_id');
 
-  const CACHE_KEY = 'store_products';
-  const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setLoading(true);
     setError('');
     
@@ -51,7 +74,7 @@ export default function StorePage() {
         try {
           const { data, timestamp } = JSON.parse(cached);
           if (Date.now() - timestamp < CACHE_TIME) {
-            setProducts(data);
+            setProducts(dedupeProducts(data));
             setLoading(false);
             return;
           }
@@ -65,7 +88,7 @@ export default function StorePage() {
       const response = await fetch(`${API}/api/store/products`);
       if (!response.ok) throw new Error('Failed to load products');
       const data = await response.json();
-      const productsData = Array.isArray(data) ? data : [];
+      const productsData = dedupeProducts(Array.isArray(data) ? data : []);
       setProducts(productsData);
       
       // Cache the data
@@ -77,11 +100,11 @@ export default function StorePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [loadProducts]);
 
   const handleBuy = async (product) => {
     const normalizedEmail = email.trim();

@@ -5,6 +5,7 @@ Comprehensive error handling and production logging
 
 import logging
 import traceback
+import os
 from typing import Dict, Any, Optional, Callable
 from datetime import datetime
 import json
@@ -12,8 +13,21 @@ from functools import wraps
 from pathlib import Path
 
 
-LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
+SERVERLESS_LOGS_DIR = Path("/tmp/fiilthy-logs")
+
+
+def resolve_logs_dir() -> Path:
+    candidate = SERVERLESS_LOGS_DIR if (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")) else DEFAULT_LOGS_DIR
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    except OSError:
+        SERVERLESS_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        return SERVERLESS_LOGS_DIR
+
+
+LOGS_DIR = resolve_logs_dir()
 
 
 class ProductionLogger:
@@ -31,19 +45,21 @@ class ProductionLogger:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
         
-        # File handler
-        file_handler = logging.FileHandler(LOGS_DIR / f"{name}.log")
-        file_handler.setLevel(logging.DEBUG)
-        
         # Formatter
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
         
         self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
+
+        try:
+            file_handler = logging.FileHandler(LOGS_DIR / f"{name}.log")
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+        except OSError:
+            self.logger.warning("File logging unavailable; using stdout only")
     
     def info(self, message: str, **kwargs):
         self.logger.info(f"{message} | {json.dumps(kwargs)}")

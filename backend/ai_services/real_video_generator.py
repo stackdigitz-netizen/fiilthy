@@ -16,7 +16,9 @@ import uuid
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent
-VIDEO_OUTPUT_DIR = PROJECT_ROOT / "data" / "generated_videos"
+SERVERLESS_ROOT = Path("/tmp/fiilthy-video-assets")
+DATA_ROOT = SERVERLESS_ROOT if (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")) else PROJECT_ROOT / "data"
+VIDEO_OUTPUT_DIR = DATA_ROOT / "generated_videos"
 VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

@@ -13,7 +13,10 @@ from pathlib import Path
 from typing import Callable
 
 
-STORAGE_PATH = Path(__file__).resolve().parent / '.runtime_secrets.json'
+import os as _os
+# Vercel (and other serverless) has a read-only filesystem except /tmp
+_is_readonly_fs = bool(_os.environ.get('VERCEL') or _os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
+STORAGE_PATH = Path('/tmp/.runtime_secrets.json') if _is_readonly_fs else Path(__file__).resolve().parent / '.runtime_secrets.json'
 
 
 def _read_runtime_secrets() -> dict[str, str]:
@@ -43,7 +46,7 @@ def get_runtime_secret(
     validator: Callable[[str], bool] | None = None,
 ) -> str:
     env_value = os.environ.get(secret_name)
-    if env_value:
+    if env_value and (validator is None or validator(env_value)):
         return env_value
 
     stored_secrets = _read_runtime_secrets()

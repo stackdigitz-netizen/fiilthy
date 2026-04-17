@@ -2,8 +2,8 @@ from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 
-MONGO_URL = os.getenv("MONGO_URL")
-DB_NAME = os.getenv("DB_NAME", "ai_ceo")
+MONGO_URL = (os.getenv("MONGO_URL") or "").strip() or None
+DB_NAME = (os.getenv("DB_NAME") or "ai_ceo").strip() or "ai_ceo"
 
 # Lazy initialization - don't connect at startup
 client = None

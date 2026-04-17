@@ -8,8 +8,8 @@ from pymongo import MongoClient
 import os
 import json
 
-MONGO_URL = os.getenv("MONGO_URL")
-DB_NAME = os.getenv("DB_NAME", "ai_ceo")
+MONGO_URL = (os.getenv("MONGO_URL") or "").strip() or None
+DB_NAME = (os.getenv("DB_NAME") or "ai_ceo").strip() or "ai_ceo"
 
 client = MongoClient(MONGO_URL)
 db = client[DB_NAME]

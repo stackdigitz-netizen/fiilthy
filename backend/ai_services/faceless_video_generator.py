@@ -36,8 +36,10 @@ logger = logging.getLogger(__name__)
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
-VIDEO_OUTPUT_DIR = PROJECT_ROOT / "data" / "generated_videos"
-TEMP_DIR = PROJECT_ROOT / "data" / "temp_video_assets"
+SERVERLESS_ROOT = Path("/tmp/fiilthy-video-assets")
+DATA_ROOT = SERVERLESS_ROOT if (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")) else PROJECT_ROOT / "data"
+VIDEO_OUTPUT_DIR = DATA_ROOT / "generated_videos"
+TEMP_DIR = DATA_ROOT / "temp_video_assets"
 VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 

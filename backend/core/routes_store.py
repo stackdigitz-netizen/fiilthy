@@ -19,11 +19,15 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/store", tags=["store"])
 
@@ -146,6 +150,18 @@ def _keys():
         return keys_manager
     except Exception:
         return None
+
+
+def _clean_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+
+    cleaned_value = value.strip()
+    return cleaned_value or None
+
+
+def _request_base_url(request: Request) -> str:
+    return str(request.base_url).rstrip("/")
 
 
 def _generate_product_content(product: dict) -> str:
@@ -355,11 +371,42 @@ def _store_sort_key(product: dict):
     )
 
 
+def _normalized_text(value) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _store_dedupe_key(product: dict):
+    normalized_title = _normalized_text(product.get("title"))
+    normalized_type = _normalized_text(product.get("type") or product.get("product_type"))
+    normalized_price = f"{float(str(product.get('price') or 0)):.2f}"
+
+    if normalized_title:
+        return (normalized_title, normalized_type, normalized_price)
+
+    return (str(product.get("id") or "").strip().lower(),)
+
+
+def _dedupe_store_products(products: list[dict]) -> list[dict]:
+    unique_products = []
+    seen_keys = set()
+
+    for product in products:
+        dedupe_key = _store_dedupe_key(product)
+        if dedupe_key in seen_keys:
+            continue
+
+        seen_keys.add(dedupe_key)
+        unique_products.append(product)
+
+    return unique_products
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 
 @router.get("/products")
-async def get_store_products(limit: int = 50):
+@limiter.limit("10/minute")
+async def get_store_products(request: Request, limit: int = 50):
     """Public product listing — no auth required."""
     db = _db()
     try:
@@ -372,43 +419,63 @@ async def get_store_products(limit: int = 50):
             if products:
                 result = []
                 for p in products:
-                    result.append({
-                        "id": p.get("id"),
-                        "title": p.get("title", ""),
-                        "description": p.get("description", ""),
-                        "price": float(p.get("price", 29.99)),
-                        "originalPrice": float(p.get("originalPrice") or p.get("price", 29.99)),
-                        "type": p.get("product_type") or p.get("type") or "ebook",
-                        "cover": (
-                            p.get("cover_image")
-                            or p.get("image_url")
-                            or p.get("cover")
-                            or "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80"
-                        ),
-                        "rating": float(p.get("rating", 4.8)),
-                        "reviews": int(p.get("reviews", 0)),
-                        "downloads": int(p.get("downloads", 0)),
-                        "conversions": int(p.get("conversions", 0)),
-                        "includes": p.get("includes") or p.get("features") or [],
-                        "tags": p.get("tags") or p.get("keywords") or [],
-                        "fileSize": p.get("fileSize", "5 MB"),
-                        "updated": str(p.get("updated") or p.get("created_at", ""))[:10],
-                        "status": p.get("status"),
-                        "featured": bool(p.get("featured")),
-                        "launch_score": float(p.get("launch_score") or 0),
-                        "revenue": float(p.get("revenue") or 0),
-                    })
+                    # Quality control: only include complete products
+                    if not p.get("title") or not p.get("description") or not p.get("price"):
+                        continue  # Skip incomplete products
+                    
+                    try:
+                        result.append({
+                            "id": p.get("id"),
+                            "title": p.get("title", ""),
+                            "description": p.get("description", ""),
+                            "price": float(str(p.get("price", 29.99))),
+                            "originalPrice": float(str(p.get("originalPrice") or p.get("price", 29.99))),
+                            "type": p.get("product_type") or p.get("type") or "ebook",
+                            "cover": (
+                                p.get("cover_image")
+                                or p.get("image_url")
+                                or p.get("cover")
+                                or "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80"
+                            ),
+                            "rating": float(str(p.get("rating") or 4.8)),
+                            "reviews": int(str(p.get("reviews") or 0)),
+                            "downloads": int(str(p.get("downloads") or 0)),
+                            "conversions": int(str(p.get("conversions") or 0)),
+                            "includes": p.get("includes") or p.get("features") or [],
+                            "tags": p.get("tags") or p.get("keywords") or [],
+                            "fileSize": p.get("fileSize", "5 MB"),
+                            "updated": str(p.get("updated") or p.get("created_at", ""))[:10],
+                            "status": p.get("status"),
+                            "featured": bool(p.get("featured")),
+                            "launch_score": float(str(p.get("launch_score") or 0)),
+                            "revenue": float(str(p.get("revenue") or 0)),
+                        })
+                    except Exception:
+                        continue  # Skip products that fail type conversion
                 ranked_products = sorted(result, key=_store_sort_key, reverse=True)
-                featured_samples = [
+                deduped_ranked_products = _dedupe_store_products(ranked_products)
+                
+                # Remove duplicates and add quality control to SAMPLE_PRODUCTS
+                seen_ids = set(p["id"] for p in deduped_ranked_products)
+                quality_samples = [
                     product for product in SAMPLE_PRODUCTS
-                    if product.get("featured") and not any(existing.get("id") == product.get("id") for existing in ranked_products)
+                    if product.get("id") not in seen_ids and 
+                    product.get("title") and product.get("description") and product.get("price")
                 ]
-                return (featured_samples + ranked_products)[:limit]
+                
+                all_products = deduped_ranked_products + quality_samples
+                unique_products = _dedupe_store_products(all_products)
+                
+                return unique_products[:limit]
     except Exception as e:
         logger.warning(f"DB error fetching store products: {e}")
 
-    # Fallback to hardcoded sample products
-    return SAMPLE_PRODUCTS
+    # Fallback to hardcoded sample products with quality control
+    quality_fallback = [
+        product for product in SAMPLE_PRODUCTS
+        if product.get("title") and product.get("description") and product.get("price")
+    ]
+    return quality_fallback
 
 
 @router.get("/products/{product_id}")
@@ -445,7 +512,11 @@ async def create_store_checkout(product_id: str, body: CheckoutRequest):
     No auth required — customers don't need an account.
     """
     km = _keys()
-    stripe_key = (km.get_key("stripe_key") if km else None) or os.environ.get("STRIPE_KEY") or os.environ.get("STRIPE_SECRET_KEY")
+    stripe_key = (
+        _clean_value(km.get_key("stripe_key") if km else None)
+        or _clean_value(os.environ.get("STRIPE_KEY"))
+        or _clean_value(os.environ.get("STRIPE_SECRET_KEY"))
+    )
     if not stripe_key:
         raise HTTPException(status_code=400, detail="Payment processing not configured")
 
@@ -472,7 +543,7 @@ async def create_store_checkout(product_id: str, body: CheckoutRequest):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    frontend_url = os.environ.get("FRONTEND_URL", "https://frontend-one-ashen-16.vercel.app")
+    frontend_url = _clean_value(os.environ.get("FRONTEND_URL")) or "https://frontend-one-ashen-16.vercel.app"
 
     price_cents = int(float(product.get("price", 29.99)) * 100)
 
@@ -651,7 +722,7 @@ class DownloadLinkRequest(BaseModel):
 
 
 @router.post("/download-link/{session_id}")
-async def get_download_link(session_id: str, body: DownloadLinkRequest):
+async def get_download_link(session_id: str, body: DownloadLinkRequest, request: Request):
     """
     Return a direct download URL for a completed Stripe session.
     This lets the success page unlock the product even if email delivery lags.
@@ -687,7 +758,7 @@ async def get_download_link(session_id: str, body: DownloadLinkRequest):
     except Exception:
         pass
 
-    backend_url = os.environ.get("BACKEND_URL", "https://fiilthy-backend.railway.app")
+    backend_url = _clean_value(os.environ.get("BACKEND_URL")) or _request_base_url(request)
     return {
         "success": True,
         "product_title": product_title,
@@ -697,7 +768,7 @@ async def get_download_link(session_id: str, body: DownloadLinkRequest):
 
 
 @router.post("/resend/{session_id}")
-async def resend_download_link(session_id: str, body: ResendRequest):
+async def resend_download_link(session_id: str, body: ResendRequest, request: Request):
     """
     Resend the download link for a completed Stripe session.
     Useful if the customer lost their email.
@@ -730,7 +801,7 @@ async def resend_download_link(session_id: str, body: ResendRequest):
     except Exception:
         pass
 
-    backend_url = os.environ.get("BACKEND_URL", "https://fiilthy-backend.railway.app")
+    backend_url = _clean_value(os.environ.get("BACKEND_URL")) or _request_base_url(request)
     download_url = f"{backend_url}/api/store/download/{token}"
 
     # Send email

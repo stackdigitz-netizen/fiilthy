@@ -1,4 +1,7 @@
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Header, Depends, Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -79,12 +82,25 @@ from ai_services.agent_orchestrator import get_orchestrator
 ROOT_DIR = Path(__file__).parent
 
 
+def normalize_env_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+
+    cleaned_value = value.strip()
+    return cleaned_value or None
+
+
+def iter_mongo_url_candidates():
+    yield normalize_env_value(keys_manager.get_key('mongodb_url'))
+    yield normalize_env_value(os.environ.get('MONGO_URI'))
+    yield normalize_env_value(os.environ.get('MONGO_URL'))
+
+
 def resolve_raw_mongo_url() -> Optional[str]:
-    return (
-        keys_manager.get_key('mongodb_url')
-        or os.environ.get('MONGO_URI')
-        or os.environ.get('MONGO_URL')
-    )
+    for candidate in iter_mongo_url_candidates():
+        if candidate:
+            return candidate
+    return None
 
 
 def is_supported_mongo_url(candidate: Optional[str]) -> bool:
@@ -100,14 +116,18 @@ def is_supported_mongo_url(candidate: Optional[str]) -> bool:
 
 
 def resolve_mongo_url() -> Optional[str]:
-    raw_mongo_url = resolve_raw_mongo_url()
-    if raw_mongo_url and is_supported_mongo_url(raw_mongo_url):
-        return raw_mongo_url
+    for candidate in iter_mongo_url_candidates():
+        if candidate and is_supported_mongo_url(candidate):
+            return candidate
     return None
 
 
 def resolve_db_name() -> str:
-    return os.environ.get('DB_NAME') or os.environ.get('MONGO_DB_NAME') or 'ceo_ai'
+    return (
+        normalize_env_value(os.environ.get('DB_NAME'))
+        or normalize_env_value(os.environ.get('MONGO_DB_NAME'))
+        or 'ceo_ai'
+    )
 
 
 load_dotenv(ROOT_DIR.parent / '.env')
@@ -220,6 +240,10 @@ automation_scheduler = None
 
 # Create the main app without a prefix
 app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 app.state.db = db
 
 # Create a router with the /api prefix
@@ -4750,7 +4774,7 @@ class PaymentRecord(BaseModel):
 async def create_stripe_checkout(request: StripeCheckoutRequest):
     """Create a Stripe checkout session"""
     try:
-        stripe_key = keys_manager.get_key('stripe_key')
+        stripe_key = normalize_env_value(keys_manager.get_key('stripe_key'))
         if not stripe_key:
             raise HTTPException(status_code=400, detail="Stripe API key not configured")
         
@@ -4832,7 +4856,7 @@ async def create_stripe_checkout(request: StripeCheckoutRequest):
 async def handle_stripe_webhook(request: Request):
     """Handle Stripe webhook events with signature verification"""
     try:
-        stripe_key = keys_manager.get_key('stripe_key')
+        stripe_key = normalize_env_value(keys_manager.get_key('stripe_key'))
         if not stripe_key:
             raise HTTPException(status_code=400, detail="Stripe API key not configured")
 
@@ -4842,7 +4866,10 @@ async def handle_stripe_webhook(request: Request):
         # Verify webhook signature
         payload = await request.body()
         sig_header = request.headers.get('stripe-signature')
-        webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET') or keys_manager.get_key('stripe_webhook_secret')
+        webhook_secret = (
+            normalize_env_value(os.environ.get('STRIPE_WEBHOOK_SECRET'))
+            or normalize_env_value(keys_manager.get_key('stripe_webhook_secret'))
+        )
 
         if not webhook_secret:
             raise HTTPException(status_code=500, detail="Stripe webhook secret not configured")

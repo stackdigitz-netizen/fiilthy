@@ -32,10 +32,10 @@ class KeysManager:
     def __init__(self):
         # Use a derived key from environment or generate one
         master_key = os.environ.get('MASTER_KEY')
-        if not master_key:
+        if not master_key or not self._is_valid_fernet_key(master_key):
             master_key = get_runtime_secret(
                 'MASTER_KEY',
-                warning_message='MASTER_KEY not set.',
+                warning_message='MASTER_KEY missing or invalid.',
                 generator=lambda: Fernet.generate_key().decode(),
                 validator=self._is_valid_fernet_key
             )
@@ -52,6 +52,14 @@ class KeysManager:
             return True
         except ValueError:
             return False
+
+    @staticmethod
+    def _normalize_value(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        cleaned_value = value.strip()
+        return cleaned_value or None
 
     def _read_persisted_keys(self) -> Dict[str, str]:
         if not self.storage_path.exists():
@@ -74,7 +82,9 @@ class KeysManager:
 
         for key_name, encrypted_value in encrypted_keys.items():
             try:
-                self.keys_cache[key_name] = self.decrypt_key(encrypted_value)
+                normalized_value = self._normalize_value(self.decrypt_key(encrypted_value))
+                if normalized_value:
+                    self.keys_cache[key_name] = normalized_value
             except ValueError:
                 continue
     
@@ -109,15 +119,16 @@ class KeysManager:
         encrypted_keys = self._read_persisted_keys()
         stored_keys = {}
         for key_name, key_value in keys_data.items():
-            if key_value:
-                encrypted = self.encrypt_key(key_value)
+            normalized_value = self._normalize_value(key_value)
+            if normalized_value:
+                encrypted = self.encrypt_key(normalized_value)
                 encrypted_keys[key_name] = encrypted
                 stored_keys[key_name] = encrypted
                 # Also cache in memory
-                self.keys_cache[key_name] = key_value
-                os.environ[key_name.upper()] = key_value
+                self.keys_cache[key_name] = normalized_value
+                os.environ[key_name.upper()] = normalized_value
                 for alias in self.ENV_KEY_ALIASES.get(key_name, []):
-                    os.environ[alias] = key_value
+                    os.environ[alias] = normalized_value
 
         if stored_keys:
             self._write_persisted_keys(encrypted_keys)
@@ -128,12 +139,15 @@ class KeysManager:
         """Retrieve a key from cache or decrypt it"""
         # First check cache
         if key_name in self.keys_cache:
-            return self.keys_cache[key_name]
+            normalized_value = self._normalize_value(self.keys_cache[key_name])
+            if normalized_value:
+                self.keys_cache[key_name] = normalized_value
+            return normalized_value
         
         # Try canonical and provider-specific environment variable aliases.
         env_names = [key_name.upper(), *self.ENV_KEY_ALIASES.get(key_name, [])]
         for env_name in env_names:
-            env_value = os.environ.get(env_name)
+            env_value = self._normalize_value(os.environ.get(env_name))
             if env_value:
                 self.keys_cache[key_name] = env_value
                 return env_value

@@ -17,7 +17,7 @@ class ProjectFileManager:
     
     def __init__(self, db=None):
         self.db = db
-        self.base_path = "/app/projects"
+        self.base_path = "/tmp/projects" if (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")) else "/app/projects"
         os.makedirs(self.base_path, exist_ok=True)
     
     async def create_project(self, product: Dict[str, Any]) -> Dict[str, Any]:
