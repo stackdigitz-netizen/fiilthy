@@ -7,7 +7,7 @@ import {
 
 const API = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : 'https://store-backend-livid.vercel.app';
+  : (process.env.REACT_APP_BACKEND_URL || 'https://store-backend-livid.vercel.app');
 
 async function requestDownloadLink(sessionId, customerEmail) {
   const res = await fetch(`${API}/api/store/download-link/${sessionId}`, {
@@ -27,6 +27,7 @@ async function requestDownloadLink(sessionId, customerEmail) {
 export default function StorePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -36,12 +37,50 @@ export default function StorePage() {
   const isSuccess = params.get('success') === '1';
   const sessionId = params.get('session_id');
 
+  const CACHE_KEY = 'store_products';
+  const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+
+  const loadProducts = async () => {
+    setLoading(true);
+    setError('');
+    
+    // Check cache first
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TIME) {
+            setProducts(data);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // Invalid cache, ignore
+        }
+      }
+    }
+    
+    try {
+      const response = await fetch(`${API}/api/store/products`);
+      if (!response.ok) throw new Error('Failed to load products');
+      const data = await response.json();
+      const productsData = Array.isArray(data) ? data : [];
+      setProducts(productsData);
+      
+      // Cache the data
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: productsData, timestamp: Date.now() }));
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load products. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch(`${API}/api/store/products`)
-      .then(r => r.json())
-      .then(data => setProducts(Array.isArray(data) ? data : []))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
+    loadProducts();
   }, []);
 
   const handleBuy = async (product) => {
@@ -124,11 +163,11 @@ export default function StorePage() {
       {/* Products Grid */}
       <div style={s.sectionWrap}>
         <h2 style={s.sectionTitle}>Featured Products</h2>
-        {loading ? (
-          <div style={s.loadingBox}>Loading products…</div>
-        ) : (
+        {loading && <div style={s.loadingBox}>Loading products…</div>}
+        {error && <div style={s.errorBox}><p>{error}</p><button onClick={loadProducts} style={s.retryButton}>Retry</button></div>}
+        {!loading && !error && (
           <div style={s.grid}>
-            {products.map(product => (
+            {products.length === 0 ? <p style={{ color: '#555', textAlign: 'center', padding: '60px 0' }}>No products available</p> : products.map(product => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -311,7 +350,7 @@ function ProductCard({ product, onSelect, onBuy, isLoading }) {
   return (
     <div style={s.card} onClick={onSelect}>
       <div style={s.cardImgWrap}>
-        <img src={product.cover} alt={product.title} style={s.cardImg} />
+        <img src={product.cover} alt={product.title} style={s.cardImg} loading="lazy" />
         {discount > 0 && <div style={s.badge}>−{discount}%</div>}
         <div style={s.cardTypePill}>{product.type || 'guide'}</div>
       </div>
@@ -550,6 +589,21 @@ const s = {
     color: '#555',
     textAlign: 'center',
     padding: '60px 0',
+  },
+  errorBox: {
+    textAlign: 'center',
+    padding: '60px 0',
+    color: '#f87171',
+  },
+  retryButton: {
+    background: '#00e5ff',
+    color: '#000',
+    border: 'none',
+    padding: '8px 16px',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontWeight: 700,
+    marginTop: 10,
   },
   grid: {
     display: 'grid',
