@@ -655,8 +655,10 @@ async def download_product(token: str):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Build ZIP in memory
-    content_text = _generate_product_content(product)
+    # Build ZIP with full product content
+    from core.product_content import generate_product_files
+
+    product_files = generate_product_files(product)
     safe_title = (
         "".join(c if c.isalnum() or c in (" ", "-", "_") else "" for c in product.get("title", "product"))
         .strip()
@@ -665,8 +667,9 @@ async def download_product(token: str):
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Main guide as Markdown
-        zf.writestr(f"{safe_title}.md", content_text)
+        # Add all product-specific files
+        for filename, content in product_files.items():
+            zf.writestr(filename, content)
 
         # Order info JSON
         order_info = {
@@ -677,13 +680,15 @@ async def download_product(token: str):
         }
         zf.writestr("order_info.json", json.dumps(order_info, indent=2))
 
-        # README
+        # README with file listing
+        file_list = "\n".join(f"  {fname}" for fname in product_files.keys())
         readme = (
             f"# {product.get('title', 'Your Product')} — FiiLTHY.ai\n\n"
             "Thank you for your purchase!\n\n"
             "Contents:\n"
-            f"  {safe_title}.md    — Your complete product\n"
+            f"{file_list}\n"
             "  order_info.json  — Your order details\n\n"
+            "Start with the main guide, then work through the worksheets in order.\n\n"
             "Support: support@fiilthy.ai\n"
             f"© {datetime.now().year} FiiLTHY.ai — Personal use only. Do not redistribute."
         )
