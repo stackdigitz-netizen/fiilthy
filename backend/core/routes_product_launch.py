@@ -1,5 +1,6 @@
 """
-Product Launch Routes - Unified endpoints for video generation, campaigns, and publishing
+Product Launch Routes.
+Canonical production surface for campaigns, branding, and storefront publishing.
 """
 
 import os

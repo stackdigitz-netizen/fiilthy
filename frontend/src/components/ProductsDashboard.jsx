@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Rocket, Zap, Mail, FileText, ChevronRight, Loader, Plus } from 'lucide-react';
+import { Rocket, Zap, Mail, FileText, ChevronRight, Loader, Plus, Download } from 'lucide-react';
 import { ProductFilesService } from '../services/ProductFilesService';
 import './ProductsDashboard.css';
 
@@ -67,6 +67,14 @@ export const ProductsDashboard = () => {
     }
   };
 
+  const handleOwnerDownload = async (product) => {
+    try {
+      await ProductFilesService.downloadOwnerBundle(product);
+    } catch (err) {
+      setError(err.message || 'Failed to download product bundle');
+    }
+  };
+
   return (
     <div className="products-dashboard">
       {/* Header */}
@@ -126,6 +134,7 @@ export const ProductsDashboard = () => {
                   onOpen={handleOpenProduct}
                   onGenerateMarketing={handleGenerateMarketing}
                   onGenerateEmail={handleGenerateEmail}
+                  onDownloadBundle={handleOwnerDownload}
                 />
               ))}
             </div>
@@ -141,6 +150,7 @@ export const ProductsDashboard = () => {
           isGenerating={isGenerating}
           onGenerateMarketing={() => handleGenerateMarketing(selectedProduct)}
           onGenerateEmail={() => handleGenerateEmail(selectedProduct)}
+          onDownloadBundle={() => handleOwnerDownload(selectedProduct)}
           onBack={() => setActiveTab('grid')}
         />
       )}
@@ -151,7 +161,7 @@ export const ProductsDashboard = () => {
 /**
  * ProductCardItem - Individual product card
  */
-const ProductCardItem = ({ product, onOpen, onGenerateMarketing, onGenerateEmail }) => {
+const ProductCardItem = ({ product, onOpen, onGenerateMarketing, onGenerateEmail, onDownloadBundle }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLoading, setIsLoading] = useState({});
 
@@ -167,6 +177,9 @@ const ProductCardItem = ({ product, onOpen, onGenerateMarketing, onGenerateEmail
           break;
         case 'email':
           await onGenerateEmail?.(product);
+          break;
+        case 'download':
+          await onDownloadBundle?.(product);
           break;
         default:
           break;
@@ -231,6 +244,15 @@ const ProductCardItem = ({ product, onOpen, onGenerateMarketing, onGenerateEmail
           <Mail size={16} />
           <span>{isLoading['email'] ? 'Generating...' : '📧 Email'}</span>
         </button>
+
+        <button
+          className="action-btn secondary"
+          onClick={() => handleAction('download')}
+          disabled={isLoading['download']}
+        >
+          <Download size={16} />
+          <span>{isLoading['download'] ? 'Preparing...' : '⬇️ Download'}</span>
+        </button>
       </div>
 
       {/* Tags */}
@@ -256,6 +278,7 @@ const ProductDetailView = ({
   isGenerating,
   onGenerateMarketing,
   onGenerateEmail,
+  onDownloadBundle,
   onBack,
 }) => {
   return (
@@ -320,6 +343,11 @@ const ProductDetailView = ({
                   Generate Email Campaign
                 </>
               )}
+            </button>
+
+            <button className="btn-action" onClick={onDownloadBundle} disabled={isGenerating}>
+              <Download size={18} />
+              Download Product Bundle
             </button>
           </div>
         </div>

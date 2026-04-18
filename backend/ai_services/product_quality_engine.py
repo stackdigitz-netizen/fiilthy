@@ -98,8 +98,8 @@ THRESHOLDS = {
     "min_benefits": 3,
     "min_target_audience_chars": 20,
     "min_unique_word_ratio": 0.45,  # 45% unique words in description = not filler
-    "pass_score": 75.0,             # 75+ = pass
-    "sale_score": 80.0,             # 80+ = ready for sale
+    "pass_score": 82.0,             # 82+ = pass
+    "sale_score": 88.0,             # 88+ = ready for sale
 }
 
 FILLER_PHRASES = [
@@ -126,6 +126,14 @@ WEAK_TITLE_WORDS = [
     "course",
     "guide",
     "template",
+]
+
+GENERIC_DESCRIPTION_PATTERNS = [
+    "is built for founders, freelancers, and creators who want a cleaner path to revenue",
+    "it combines positioning guidance, concrete implementation steps, offer structure, and launch assets",
+    "instead of vague theory, this product focuses on execution, packaging, and conversion",
+    "ready to market and deliver immediately",
+    "move from idea to sellable offer without wasting weeks on scattered research",
 ]
 
 
@@ -356,6 +364,18 @@ class ProductQualityEngine:
         desc = (product.get("description") or "").lower()
         if not desc:
             return QCCheck("Uniqueness", QCStatus.FAIL, 0, 10, "No description to analyse", blocking=True)
+
+        generic_matches = [pattern for pattern in GENERIC_DESCRIPTION_PATTERNS if pattern in desc]
+        if len(generic_matches) >= 2:
+            return QCCheck(
+                "Uniqueness",
+                QCStatus.FAIL,
+                15,
+                10,
+                "Description matches known boilerplate product copy",
+                "Rewrite the description with concrete specifics, original positioning, and product-specific outcomes",
+                True,
+            )
 
         words = re.findall(r"\b[a-z]{3,}\b", desc)
         if not words:

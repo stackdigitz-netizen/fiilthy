@@ -35,6 +35,8 @@ export default function QualityControlPage() {
   const [expanded, setExpanded] = useState(null);
   const [triggering, setTriggering] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [reviewingAll, setReviewingAll] = useState(false);
+  const [reviewSummary, setReviewSummary] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +94,25 @@ export default function QualityControlPage() {
     }
   };
 
+  const reviewAllProducts = async () => {
+    setReviewingAll(true);
+    try {
+      const res = await fetch(`${API}/api/quality/review-all`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        setReviewSummary(await res.json());
+        await load();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setReviewingAll(false);
+    }
+  };
+
   const filteredProducts = products.filter(p => {
     if (filterStatus === 'all') return true;
     return p.status === filterStatus;
@@ -146,9 +167,14 @@ export default function QualityControlPage() {
       <div className="content-section">
         <div className="section-header">
           <h3>Automated Production Cycle</h3>
-          <button className="btn btn-primary btn-small" onClick={triggerCycle} disabled={triggering}>
-            <Play size={14} /> {triggering ? 'Starting...' : 'Run Cycle Now'}
-          </button>
+          <div className="button-group">
+            <button className="btn btn-secondary btn-small" onClick={reviewAllProducts} disabled={reviewingAll}>
+              <Award size={14} /> {reviewingAll ? 'Reviewing...' : 'Review Entire Catalog'}
+            </button>
+            <button className="btn btn-primary btn-small" onClick={triggerCycle} disabled={triggering}>
+              <Play size={14} /> {triggering ? 'Starting...' : 'Run Cycle Now'}
+            </button>
+          </div>
         </div>
         <div className="info-grid">
           <div>
@@ -170,6 +196,14 @@ export default function QualityControlPage() {
             80 / 100
           </div>
         </div>
+        {reviewSummary && (
+          <div className="info-grid" style={{ marginTop: 16 }}>
+            <div><strong>Reviewed</strong> {reviewSummary.processed}</div>
+            <div><strong>Approved</strong> {reviewSummary.approved + reviewSummary.published}</div>
+            <div><strong>Hidden</strong> {(reviewSummary.rejected || 0) + (reviewSummary.duplicate || 0) + (reviewSummary.retired || 0)}</div>
+            <div><strong>Avg Score</strong> {reviewSummary.average_score || '—'}</div>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

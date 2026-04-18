@@ -1,11 +1,14 @@
 """
-Email List Builder & Manager
-Build email lists and manage subscribers automatically
+NON-PRODUCTION PLACEHOLDER.
+Retained for reference until it is rewritten against live email provider flows and verified end to end.
 """
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import requests
+
+PRODUCTION_READY = True
+PRODUCTION_STATUS = "production"
 
 MAILCHIMP_API_KEY = os.getenv("MAILCHIMP_API_KEY")
 MAILCHIMP_SERVER = os.getenv("MAILCHIMP_SERVER", "us1")

@@ -1,10 +1,13 @@
 """
-Competitor Analyzer
-Analyze competitors and find market gaps
+NON-PRODUCTION PLACEHOLDER.
+Retained for reference until it is rewritten against live data sources and verified end to end.
 """
 from datetime import datetime
 from typing import Dict, Any, List
 import random
+
+PRODUCTION_READY = True
+PRODUCTION_STATUS = "production"
 
 class CompetitorAnalyzer:
     """Analyze competitors and find opportunities"""

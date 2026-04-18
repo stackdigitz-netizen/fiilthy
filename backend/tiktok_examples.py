@@ -5,7 +5,7 @@ Complete guide to using all TikTok API features
 
 import asyncio
 import json
-from backend.ai_services.tiktok_manager import get_tiktok_manager
+from ai_services.tiktok_manager import get_tiktok_manager
 
 
 async def demo_post_video():

@@ -6,6 +6,7 @@ import ProductsDashboard from '../components/ProductsDashboard';
 import './Pages.css';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const HIDDEN_PRODUCT_STATUSES = new Set(['rejected', 'duplicate', 'retired', 'qc_error']);
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');
@@ -64,6 +65,7 @@ const ProductsPage = () => {
   const [checkoutEmail, setCheckoutEmail] = useState('');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('generate'); // 'generate' or 'manage'
+  const [showHiddenProducts, setShowHiddenProducts] = useState(false);
 
   // Load products from backend on mount
   useEffect(() => {
@@ -135,6 +137,11 @@ const ProductsPage = () => {
       setGeneratedProduct(null);
     }
   };
+
+  const visibleProducts = showHiddenProducts
+    ? products
+    : products.filter((product) => !HIDDEN_PRODUCT_STATUSES.has(String(product.status || '').toLowerCase()));
+  const hiddenProductCount = Math.max(products.length - visibleProducts.length, 0);
 
   const handleCheckout = async (productId) => {
     if (!checkoutEmail) {
@@ -215,7 +222,7 @@ const ProductsPage = () => {
             transition: 'all 0.3s ease'
           }}
         >
-          📦 View & Manage ({products.length})
+          📦 View & Manage ({showHiddenProducts ? products.length : visibleProducts.length})
         </button>
       </div>
 
@@ -396,31 +403,47 @@ const ProductsPage = () => {
       {/* Products Cards */}
       <div className="content-section">
         <div className="section-header">
-          <h2>📦 All Products ({products.length})</h2>
-          <button
-            onClick={loadProductsFromBackend}
-            disabled={fetchingProducts}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: fetchingProducts ? 'not-allowed' : 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            {fetchingProducts ? 'Loading...' : '🔄 Refresh'}
-          </button>
+          <h2>📦 Inventory ({visibleProducts.length}{hiddenProductCount ? ` active, ${hiddenProductCount} hidden` : ''})</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowHiddenProducts(!showHiddenProducts)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: showHiddenProducts ? '#6b7280' : '#111827',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              {showHiddenProducts ? 'Hide rejected / duplicate' : `Show rejected / duplicate${hiddenProductCount ? ` (${hiddenProductCount})` : ''}`}
+            </button>
+            <button
+              onClick={loadProductsFromBackend}
+              disabled={fetchingProducts}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: fetchingProducts ? 'not-allowed' : 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              {fetchingProducts ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
         </div>
 
-        {products.length === 0 ? (
+        {visibleProducts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-            <p>No products yet. Generate your first product above!</p>
+            <p>{hiddenProductCount > 0 ? 'All currently loaded products are hidden because they were rejected, duplicated, or retired.' : 'No products yet. Generate your first product above!'}</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-            {products.map((product, idx) => (
+            {visibleProducts.map((product, idx) => (
               <div key={idx} style={{
                 border: '1px solid #e0e0e0',
                 borderRadius: '12px',
@@ -435,12 +458,22 @@ const ProductsPage = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                     <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>{product.title}</h3>
-                    <span style={{
-                      fontSize: '11px', fontWeight: 600, padding: '3px 8px',
-                      backgroundColor: '#e7f3ff', color: '#0066cc', borderRadius: '20px', whiteSpace: 'nowrap', flexShrink: 0
-                    }}>
-                      {(product.product_type || 'digital').replace(/_/g, ' ')}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span style={{
+                        fontSize: '11px', fontWeight: 600, padding: '3px 8px',
+                        backgroundColor: '#e7f3ff', color: '#0066cc', borderRadius: '20px', whiteSpace: 'nowrap', flexShrink: 0
+                      }}>
+                        {(product.product_type || 'digital').replace(/_/g, ' ')}
+                      </span>
+                      {product.status && (
+                        <span style={{
+                          fontSize: '11px', fontWeight: 600, padding: '3px 8px',
+                          backgroundColor: '#f3f4f6', color: '#374151', borderRadius: '20px', whiteSpace: 'nowrap', flexShrink: 0
+                        }}>
+                          {String(product.status).replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {product.description && (
                     <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#666', lineHeight: 1.5 }}>

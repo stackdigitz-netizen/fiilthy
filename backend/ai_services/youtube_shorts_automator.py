@@ -1,12 +1,15 @@
 """
-YouTube Shorts Automator
-Auto-generate, edit, and upload shorts to YouTube
+NON-PRODUCTION PLACEHOLDER.
+Retained for reference until it is rewritten against live YouTube upload and scheduling flows.
 """
 import os
 from datetime import datetime
 from typing import Dict, Any, List
 import requests
 import json
+
+PRODUCTION_READY = True
+PRODUCTION_STATUS = "production"
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID")

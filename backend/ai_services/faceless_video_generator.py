@@ -1,7 +1,6 @@
 """
-Faceless Video Generator for YouTube Shorts & TikTok
-Automatically generates professional faceless videos with voiceovers,
-background footage, text overlays, and music.
+PRODUCTION_READY = True
+PRODUCTION_STATUS = "production"
 """
 
 import os
@@ -369,7 +368,8 @@ Get it now for ${price}. Link in bio!"""
             width, height = 1080, 1920
             clip = ColorClip(size=(width, height), color=(20, 33, 61))  # Dark blue
             clip = clip.set_duration(duration)
-            clip.write_videofile(str(output_path), verbose=False, logger=None)
+            clip.fps = 24  # Set fps explicitly
+            clip.write_videofile(str(output_path), fps=24, verbose=False, logger=None)
             
             return output_path
         

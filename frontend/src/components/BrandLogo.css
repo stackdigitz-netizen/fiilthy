@@ -1,0 +1,114 @@
+.brand-logo {
+  --brand-main: #f8f4ea;
+  --brand-muted: rgba(244, 221, 145, 0.8);
+  --brand-glow: rgba(212, 175, 55, 0.22);
+  --brand-mark-width: 58px;
+  --brand-font-size: 2rem;
+  --brand-line-width: 11.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  position: relative;
+  max-width: 100%;
+}
+
+.brand-logo--dark {
+  --brand-main: #0b0b0b;
+  --brand-muted: rgba(91, 74, 29, 0.62);
+  --brand-glow: rgba(212, 175, 55, 0.16);
+}
+
+.brand-logo--xs {
+  --brand-mark-width: 38px;
+}
+
+.brand-logo--sm {
+  --brand-mark-width: 48px;
+  --brand-font-size: 1.65rem;
+  --brand-line-width: 9rem;
+}
+
+.brand-logo--md {
+  --brand-mark-width: 60px;
+  --brand-font-size: 2.2rem;
+  --brand-line-width: 12rem;
+}
+
+.brand-logo--lg {
+  --brand-mark-width: 82px;
+  --brand-font-size: 3rem;
+  --brand-line-width: 16rem;
+}
+
+.brand-logo__mark {
+  width: var(--brand-mark-width);
+  height: auto;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.brand-logo__copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.brand-logo__wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.02em;
+  font-size: var(--brand-font-size);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  line-height: 0.9;
+  transform: skew(-12deg);
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.brand-logo__main {
+  color: var(--brand-main);
+  text-shadow: 0 0 18px var(--brand-glow);
+}
+
+.brand-logo__suffix {
+  background: linear-gradient(90deg, #b88924 0%, #d4af37 55%, #f4dd91 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+.brand-logo__line {
+  position: absolute;
+  left: calc(var(--brand-mark-width) + 0.35rem);
+  bottom: -0.2rem;
+  width: min(var(--brand-line-width), calc(100% - var(--brand-mark-width) - 0.35rem));
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, 0.95) 52%, rgba(244, 221, 145, 0.18) 100%);
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.26);
+}
+
+.brand-logo--icon {
+  gap: 0;
+}
+
+.brand-logo--icon .brand-logo__line,
+.brand-logo--icon .brand-logo__copy {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .brand-logo--lg {
+    --brand-mark-width: 68px;
+    --brand-font-size: 2.45rem;
+    --brand-line-width: 13rem;
+  }
+
+  .brand-logo--md {
+    --brand-mark-width: 54px;
+    --brand-font-size: 1.95rem;
+    --brand-line-width: 10.5rem;
+  }
+}

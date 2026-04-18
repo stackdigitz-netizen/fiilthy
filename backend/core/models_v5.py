@@ -36,6 +36,7 @@ class ProductStatus(str, Enum):
     PUBLISHED = "published"
     OPTIMIZING = "optimizing"
     ARCHIVED = "archived"
+    DUPLICATE = "duplicate"
 
 
 class ContentType(str, Enum):

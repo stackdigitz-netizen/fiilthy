@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API_URL from '../config/api';
+import BrandLogo from '../components/BrandLogo';
 import './AuthPages.css';
 
 export default function LoginPage() {
@@ -47,7 +48,7 @@ export default function LoginPage() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>FiiLTHY<span style={{color: '#e040fb'}}>.ai</span></h1>
+          <BrandLogo theme="light" size="md" />
           <p>Sign In to Your Digital Empire</p>
         </div>
 

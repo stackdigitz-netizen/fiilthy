@@ -37,14 +37,13 @@ SAMPLE_PRODUCTS = [
     {
         "id": "flagship-ai-offer-engine",
         "title": "AI Offer Engine for Solo Operators",
+        "subtitle": "Create a high-converting offer, even if you've never sold anything before.",
         "description": "Turn one skill into a premium digital offer, a fast checkout flow, and an AI-assisted sales engine you can run without a team.",
-        "price": 79.0,
-        "originalPrice": 149.0,
-        "type": "blueprint",
-        "cover": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&q=80",
-        "rating": 4.9,
-        "reviews": 0,
-        "downloads": 0,
+        "benefits": [
+            "Turn an idea into something people will pay for",
+            "Create offers that actually convert",
+            "Launch faster without guessing"
+        ],
         "includes": [
             "High-ticket offer design worksheet",
             "AI prompts for positioning and sales copy",
@@ -52,6 +51,19 @@ SAMPLE_PRODUCTS = [
             "Delivery and fulfillment checklist",
             "Upsell and retention framework",
         ],
+        "perfect_for": [
+            "Solo operators",
+            "Service providers",
+            "Anyone wanting to create premium offers"
+        ],
+        "cta": "Start Building Your Offer Today",
+        "price": 79.0,
+        "originalPrice": 149.0,
+        "type": "blueprint",
+        "cover": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&q=80",
+        "rating": 4.9,
+        "reviews": 0,
+        "downloads": 0,
         "tags": ["AI", "Offers", "Sales", "Solo Operator"],
         "fileSize": "14 MB",
         "updated": "2026-04-14",
@@ -62,14 +74,14 @@ SAMPLE_PRODUCTS = [
     {
         "id": "fiilthy-002",
         "title": "Digital Product Launch Playbook",
+        "subtitle": "Launch profitable digital products in 7 days with AI.",
         "description": "Launch profitable digital products in 7 days with AI. The exact playbook used to generate $50K+ in launches.",
-        "price": 49.0,
-        "originalPrice": 99.0,
-        "type": "template",
-        "cover": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80",
-        "rating": 4.8,
-        "reviews": 32,
-        "downloads": 920,
+        "benefits": [
+            "Launch products that actually sell",
+            "Use AI to speed up your process",
+            "Follow proven 7-day framework",
+            "Generate $50K+ in revenue"
+        ],
         "includes": [
             "127-point launch checklist",
             "5-part email funnel sequences",
@@ -77,6 +89,19 @@ SAMPLE_PRODUCTS = [
             "Pricing & positioning guide",
             "Competitor research framework",
         ],
+        "perfect_for": [
+            "New product creators",
+            "Experienced sellers",
+            "Anyone wanting faster launches"
+        ],
+        "cta": "Launch Your First Product Today",
+        "price": 49.0,
+        "originalPrice": 99.0,
+        "type": "template",
+        "cover": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80",
+        "rating": 4.8,
+        "reviews": 32,
+        "downloads": 920,
         "tags": ["Digital Products", "Launch", "Marketing"],
         "fileSize": "12 MB",
         "updated": "2025-01-20",
@@ -416,57 +441,45 @@ async def get_store_products(request: Request, limit: int = 50):
                 {"_id": 0},
             ).sort("created_at", -1).limit(limit).to_list(limit)
 
-            if products:
-                result = []
-                for p in products:
-                    # Quality control: only include complete products
-                    if not p.get("title") or not p.get("description") or not p.get("price"):
-                        continue  # Skip incomplete products
-                    
-                    try:
-                        result.append({
-                            "id": p.get("id"),
-                            "title": p.get("title", ""),
-                            "description": p.get("description", ""),
-                            "price": float(str(p.get("price", 29.99))),
-                            "originalPrice": float(str(p.get("originalPrice") or p.get("price", 29.99))),
-                            "type": p.get("product_type") or p.get("type") or "ebook",
-                            "cover": (
-                                p.get("cover_image")
-                                or p.get("image_url")
-                                or p.get("cover")
-                                or "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80"
-                            ),
-                            "rating": float(str(p.get("rating") or 4.8)),
-                            "reviews": int(str(p.get("reviews") or 0)),
-                            "downloads": int(str(p.get("downloads") or 0)),
-                            "conversions": int(str(p.get("conversions") or 0)),
-                            "includes": p.get("includes") or p.get("features") or [],
-                            "tags": p.get("tags") or p.get("keywords") or [],
-                            "fileSize": p.get("fileSize", "5 MB"),
-                            "updated": str(p.get("updated") or p.get("created_at", ""))[:10],
-                            "status": p.get("status"),
-                            "featured": bool(p.get("featured")),
-                            "launch_score": float(str(p.get("launch_score") or 0)),
-                            "revenue": float(str(p.get("revenue") or 0)),
-                        })
-                    except Exception:
-                        continue  # Skip products that fail type conversion
-                ranked_products = sorted(result, key=_store_sort_key, reverse=True)
-                deduped_ranked_products = _dedupe_store_products(ranked_products)
-                
-                # Remove duplicates and add quality control to SAMPLE_PRODUCTS
-                seen_ids = set(p["id"] for p in deduped_ranked_products)
-                quality_samples = [
-                    product for product in SAMPLE_PRODUCTS
-                    if product.get("id") not in seen_ids and 
-                    product.get("title") and product.get("description") and product.get("price")
-                ]
-                
-                all_products = deduped_ranked_products + quality_samples
-                unique_products = _dedupe_store_products(all_products)
-                
-                return unique_products[:limit]
+            result = []
+            for p in products:
+                # Quality control: only include complete products
+                if not p.get("title") or not p.get("description") or not p.get("price"):
+                    continue  # Skip incomplete products
+
+                try:
+                    result.append({
+                        "id": p.get("id"),
+                        "title": p.get("title", ""),
+                        "description": p.get("description", ""),
+                        "price": float(str(p.get("price", 29.99))),
+                        "originalPrice": float(str(p.get("originalPrice") or p.get("price", 29.99))),
+                        "type": p.get("product_type") or p.get("type") or "ebook",
+                        "cover": (
+                            p.get("cover_image")
+                            or p.get("image_url")
+                            or p.get("cover")
+                            or "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80"
+                        ),
+                        "rating": float(str(p.get("rating") or 4.8)),
+                        "reviews": int(str(p.get("reviews") or 0)),
+                        "downloads": int(str(p.get("downloads") or 0)),
+                        "conversions": int(str(p.get("conversions") or 0)),
+                        "includes": p.get("includes") or p.get("features") or [],
+                        "tags": p.get("tags") or p.get("keywords") or [],
+                        "fileSize": p.get("fileSize", "5 MB"),
+                        "updated": str(p.get("updated") or p.get("created_at", ""))[:10],
+                        "status": p.get("status"),
+                        "featured": bool(p.get("featured")),
+                        "launch_score": float(str(p.get("launch_score") or 0)),
+                        "revenue": float(str(p.get("revenue") or 0)),
+                    })
+                except Exception:
+                    continue  # Skip products that fail type conversion
+
+            ranked_products = sorted(result, key=_store_sort_key, reverse=True)
+            deduped_ranked_products = _dedupe_store_products(ranked_products)
+            return deduped_ranked_products[:limit]
     except Exception as e:
         logger.warning(f"DB error fetching store products: {e}")
 

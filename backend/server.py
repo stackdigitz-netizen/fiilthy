@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Header, Depends, Request
+from fastapi.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
@@ -8,6 +9,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 import os
 import logging
+import io
+import zipfile
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
@@ -66,17 +69,20 @@ from ai_services.quality_control import run_qc_check, ContentQualityControl
 from ai_services.real_video_generator import get_real_video_generator
 
 # Import core system
-from core.routes import router as core_router
 from core.routes_v5_production import router_v5
 from core.routes_v5_production_new import router as router_v5_new, init_services
 from core.routes_product_launch import router as router_product_launch
 from core.routes_quality import router as router_quality
 from core.routes_agents import router as router_agents
-from core.routes_store import router as router_store
+from core.routes_store import router as router_store, SAMPLE_PRODUCTS
+from core.product_content import generate_product_files
 from ai_services.product_cycle_scheduler import get_cycle_scheduler
 from ai_services.agent_orchestrator import get_orchestrator
-# Note: routes_v2 and routes_v3 are deprecated with missing dependencies
-# Using routes.py and routes_v4_production.py instead
+
+# Canonical production surfaces:
+# - campaigns, branding, and storefront publishing: routes_product_launch
+# - agent control and approval workflows: routes_agents
+# - autonomous execution APIs: /api/autonomous/* in this module plus /api/v5
 
 
 ROOT_DIR = Path(__file__).parent
@@ -267,6 +273,7 @@ class ProductStatus(str, Enum):
     REJECTED = "rejected"
     PENDING_QC = "pending_qc"
     GENERATED = "generated"
+    DUPLICATE = "duplicate"
 
 class OpportunityStatus(str, Enum):
     IDENTIFIED = "identified"
@@ -303,7 +310,12 @@ class Product(BaseModel):
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
+    subtitle: Optional[str] = None
     description: str
+    benefits: List[str] = []
+    includes: List[str] = []
+    perfect_for: List[str] = []
+    cta: Optional[str] = None
     product_type: ProductType = ProductType.TEMPLATE
     content: Optional[str] = None
     cover_image: Optional[str] = None
@@ -315,14 +327,21 @@ class Product(BaseModel):
     marketplace_links: List[MarketplaceLink] = []
     tags: List[str] = []
     price: float = 0.0
+    original_price: Optional[float] = None
 
 class ProductCreate(BaseModel):
     title: str
+    subtitle: Optional[str] = None
     description: str
+    benefits: List[str] = []
+    includes: List[str] = []
+    perfect_for: List[str] = []
+    cta: Optional[str] = None
     product_type: ProductType
     content: Optional[str] = None
     cover_image: Optional[str] = None
     price: float = 9.99
+    original_price: Optional[float] = None
     tags: List[str] = []
 
 class Opportunity(BaseModel):
@@ -3980,6 +3999,90 @@ async def create_purchase(purchase_data: dict, _auth: dict = Depends(require_aut
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def _resolve_auth_user_id(auth_payload: dict) -> Optional[str]:
+    return auth_payload.get("sub") or auth_payload.get("user_id")
+
+
+def _configured_owner_emails() -> set[str]:
+    configured_emails: set[str] = set()
+    for env_name in ("OWNER_EMAIL", "OWNER_EMAILS", "ADMIN_EMAIL", "ADMIN_EMAILS"):
+        raw_value = normalize_env_value(os.environ.get(env_name))
+        if not raw_value:
+            continue
+        configured_emails.update(
+            email.strip().lower()
+            for email in raw_value.split(",")
+            if email.strip()
+        )
+    return configured_emails
+
+
+async def _auth_has_owner_download_access(auth_payload: dict) -> bool:
+    if auth_payload.get("is_admin"):
+        return True
+
+    role_value = normalize_env_value(auth_payload.get("role"))
+    if role_value and role_value.lower() in {"admin", "owner"}:
+        return True
+
+    normalized_email = normalize_env_value(auth_payload.get("email"))
+    normalized_email = normalized_email.lower() if normalized_email else None
+    configured_emails = _configured_owner_emails()
+
+    if db is not None:
+        try:
+            users_collection = db["users"]
+            user_doc = None
+            user_id = _resolve_auth_user_id(auth_payload)
+
+            if user_id:
+                user_doc = await users_collection.find_one({"id": user_id}, {"_id": 0, "is_admin": 1})
+
+            if not user_doc and normalized_email:
+                user_doc = await users_collection.find_one({"email": normalized_email}, {"_id": 0, "is_admin": 1})
+
+            if user_doc and user_doc.get("is_admin"):
+                return True
+        except Exception:
+            pass
+
+    if configured_emails:
+        return normalized_email in configured_emails
+
+    return False
+
+
+def _build_owner_product_zip(product: dict, owner_email: Optional[str]) -> tuple[io.BytesIO, str]:
+    product_files = generate_product_files(product)
+    safe_title = (
+        "".join(c if c.isalnum() or c in (" ", "-", "_") else "" for c in product.get("title", "product"))
+        .strip()
+        .replace(" ", "_")
+    )
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename, content in product_files.items():
+            zf.writestr(filename, content)
+
+        zf.writestr(
+            "owner_download_info.json",
+            json.dumps(
+                {
+                    "product_id": product.get("id"),
+                    "title": product.get("title"),
+                    "owner_email": owner_email,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "owner-download",
+                },
+                indent=2,
+            ),
+        )
+
+    zip_buf.seek(0)
+    return zip_buf, safe_title
+
 @app.get("/api/fiilthy/purchases")
 async def get_user_purchases(_auth: dict = Depends(require_auth)):
     """Get user's digital product purchases"""
@@ -3996,6 +4099,51 @@ async def get_user_purchases(_auth: dict = Depends(require_auth)):
     except Exception as e:
         if is_database_query_error(e):
             return []
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fiilthy/owner-download/{product_id}")
+async def owner_download_product(product_id: str, _auth: dict = Depends(require_auth)):
+    """Download a product bundle directly from the app without a purchase.
+
+    Intended for the operator/owner workflow while building and QA'ing products.
+    """
+    try:
+        if not await _auth_has_owner_download_access(_auth):
+            raise HTTPException(
+                status_code=403,
+                detail="Owner access required. Set OWNER_EMAIL/OWNER_EMAILS or mark your user as is_admin.",
+            )
+
+        product = None
+        if db is not None:
+            try:
+                product = await db.products.find_one({"id": product_id}, {"_id": 0})
+            except Exception:
+                product = None
+
+        if not product:
+            for sample_product in SAMPLE_PRODUCTS:
+                if sample_product.get("id") == product_id:
+                    product = dict(sample_product)
+                    break
+
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        zip_buf, safe_title = _build_owner_product_zip(product, _auth.get("email"))
+
+        return StreamingResponse(
+            zip_buf,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_title}.zip"',
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/fiilthy/download/{product_id}")
@@ -5630,7 +5778,6 @@ async def get_learning_analytics():
 
 # Include the router in the main app
 app.include_router(api_router)
-app.include_router(core_router, prefix="/api")
 app.include_router(router_v5)
 app.include_router(router_v5_new)  # NEW: Production factory routes
 app.include_router(router_product_launch)  # NEW: Product launch routes

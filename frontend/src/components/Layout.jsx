@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from './BrandLogo';
 import './Layout.css';
 import {
-  Menu, X, Cpu, Bell, LineChart, Shield, Settings, ShoppingBag,
+  Menu, X, Cpu, Bell, LineChart, Shield, Settings, ShoppingBag, Package, FolderOpen, Rocket, Share2, TrendingUp,
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
@@ -49,6 +50,11 @@ const Layout = ({ children }) => {
   const navigation = [
     { name: 'Command Center', href: '/',          icon: Cpu },
     { name: 'Approvals',      href: '/approvals', icon: Bell,      badge: pendingApprovals },
+    { name: 'Products',       href: '/products',  icon: Package },
+    { name: 'Projects',       href: '/projects',  icon: FolderOpen },
+    { name: 'Launch',         href: '/launch',    icon: Rocket },
+    { name: 'Social',         href: '/social-media', icon: Share2 },
+    { name: 'Growth',         href: '/growth',    icon: TrendingUp },
     { name: 'Store',          href: '/store',     icon: ShoppingBag },
     { name: 'Analytics',      href: '/analytics', icon: LineChart },
     { name: 'Vault',          href: '/vault',      icon: Shield },
@@ -63,8 +69,7 @@ const Layout = ({ children }) => {
       <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <div className="logo-icon">F</div>
-            {sidebarOpen && <div className="logo-text">FiiLTHY<span style={{color: '#e040fb'}}>.ai</span></div>}
+            <BrandLogo variant={sidebarOpen ? 'full' : 'icon'} theme="light" size="sm" />
           </div>
           <button
             className="sidebar-toggle"

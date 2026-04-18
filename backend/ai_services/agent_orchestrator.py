@@ -3,14 +3,33 @@ FIILTHY.AI — Agent Empire Orchestrator
 6 autonomous agent divisions running 24/7
 """
 import asyncio
+import hashlib
 import os
 import random
+import re
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        return float(raw_value.strip())
+    except (TypeError, ValueError):
+        return default
 
 DIVISIONS: Dict[str, Dict] = {
     "product_rd": {
@@ -69,12 +88,120 @@ class AgentOrchestrator:
         self.db = db
         self._tasks: Dict[str, asyncio.Task] = {}
         self._running: Dict[str, bool] = {div: False for div in DIVISIONS}
+        self.auto_feature_min_score = _env_float("AUTO_FEATURE_MIN_SCORE", 90.0)
+        self.auto_launch_min_score = _env_float("AUTO_LAUNCH_MIN_SCORE", 92.0)
+        self.auto_publish_min_score = _env_float("AUTO_PUBLISH_MIN_SCORE", 88.0)
+        self.max_pending_qc_queue = int(_env_float("MAX_PENDING_QC_QUEUE", 30.0))
+        self.max_pending_campaign_approvals = int(_env_float("MAX_PENDING_CAMPAIGN_APPROVALS", 25.0))
+        self.require_human_campaign_approval = _env_flag("REQUIRE_HUMAN_CAMPAIGN_APPROVAL", False)
+        self.enable_external_marketplace_autopublish = _env_flag("ENABLE_EXTERNAL_MARKETPLACE_AUTOPUBLISH", False)
         self.scout = None
         try:
             from ai_services.opportunity_scout import OpportunityScout
             self.scout = OpportunityScout()
         except Exception as exc:
             logger.debug(f"Opportunity scout unavailable: {exc}")
+
+    def _normalise_signature_text(self, value: Any) -> str:
+        normalized = re.sub(r"\s+", " ", str(value or "").strip().lower())
+        return normalized
+
+    def _content_signature(self, product: Dict[str, Any]) -> str:
+        description = self._normalise_signature_text(product.get("description"))
+        title = self._normalise_signature_text(product.get("title"))
+        niche = self._normalise_signature_text(product.get("niche"))
+
+        for removable in [title, niche]:
+            if removable:
+                description = description.replace(removable, " ")
+
+        for keyword in product.get("keywords") or []:
+            normalized_keyword = self._normalise_signature_text(keyword)
+            if normalized_keyword:
+                description = description.replace(normalized_keyword, " ")
+
+        description = re.sub(r"\b\d+(?:\.\d+)?\b", " ", description)
+        description = re.sub(r"\s+", " ", description).strip()
+        return hashlib.sha256(description.encode("utf-8")).hexdigest()[:24]
+
+    async def _find_duplicate_product(self, product: Dict[str, Any]) -> Optional[str]:
+        if self.db is None:
+            return None
+
+        signature = product.get("content_signature") or self._content_signature(product)
+        try:
+            existing = await self.db.products.find_one(
+                {
+                    "content_signature": signature,
+                    "id": {"$ne": product.get("id")},
+                    "status": {"$nin": ["rejected", "duplicate", "qc_error"]},
+                },
+                {"_id": 0, "id": 1},
+            )
+            return existing.get("id") if existing else None
+        except Exception as exc:
+            logger.debug(f"Duplicate lookup failed: {exc}")
+            return None
+
+    def _has_blocking_qc_issues(self, product: Dict[str, Any]) -> bool:
+        report = product.get("qc_report") or {}
+        return bool(report.get("blocking_issues"))
+
+    def _campaign_review_reason(self, product: Dict[str, Any]) -> str:
+        reasons: List[str] = []
+        if self.require_human_campaign_approval:
+            reasons.append("human approval required")
+        if not product.get("qc_ready"):
+            reasons.append("QC not sale-ready")
+        if self._has_blocking_qc_issues(product):
+            reasons.append("blocking QC issues remain")
+        if product.get("duplicate_of"):
+            reasons.append(f"duplicate of {product['duplicate_of']}")
+        if float(product.get("qc_score") or 0) < self.auto_launch_min_score:
+            reasons.append(f"QC below auto-launch threshold ({self.auto_launch_min_score:.0f})")
+        if float(product.get("launch_score") or 0) < self.auto_launch_min_score:
+            reasons.append(f"launch score below {self.auto_launch_min_score:.0f}")
+        return ", ".join(reasons) if reasons else "review required"
+
+    def _is_auto_launch_eligible(self, product: Dict[str, Any]) -> bool:
+        if self.require_human_campaign_approval:
+            return False
+        if product.get("duplicate_of"):
+            return False
+        if not product.get("qc_ready") or self._has_blocking_qc_issues(product):
+            return False
+        if float(product.get("qc_score") or 0) < self.auto_launch_min_score:
+            return False
+        if float(product.get("launch_score") or 0) < self.auto_launch_min_score:
+            return False
+        return True
+
+    def _distribution_review_reason(self, product: Dict[str, Any]) -> str:
+        reasons: List[str] = []
+        if product.get("duplicate_of"):
+            reasons.append(f"duplicate of {product['duplicate_of']}")
+        if not product.get("qc_ready"):
+            reasons.append("QC not sale-ready")
+        if self._has_blocking_qc_issues(product):
+            reasons.append("blocking QC issues remain")
+        if float(product.get("qc_score") or 0) < self.auto_publish_min_score:
+            reasons.append(f"QC below auto-publish threshold ({self.auto_publish_min_score:.0f})")
+        return ", ".join(reasons) if reasons else "manual review required"
+
+    def _is_auto_publish_eligible(self, product: Dict[str, Any]) -> bool:
+        if product.get("duplicate_of"):
+            return False
+        if not product.get("qc_ready") or self._has_blocking_qc_issues(product):
+            return False
+        if float(product.get("qc_score") or 0) < self.auto_publish_min_score:
+            return False
+        return True
+
+    def _publication_targets(self) -> List[str]:
+        targets = ["Store"]
+        if self.enable_external_marketplace_autopublish:
+            targets.extend(random.sample(self.MARKETPLACES, random.randint(3, 5)))
+        return targets
 
     # ─── Lifecycle ──────────────────────────────────────────
 
@@ -164,6 +291,23 @@ class AgentOrchestrator:
     ]
 
     async def _cycle_product_rd(self):
+        if self.db is not None:
+            pending_qc_total = await self.db.products.count_documents({"status": "pending_qc"})
+            if pending_qc_total >= self.max_pending_qc_queue:
+                await self._log(
+                    "Scout Alpha",
+                    "product_rd",
+                    f"Backpressure active — {pending_qc_total} products are still waiting for QC",
+                    "warning",
+                )
+                await self._set_state("product_rd", {
+                    "current_task": f"Paused — pending QC queue at {pending_qc_total}/{self.max_pending_qc_queue}",
+                    "cycle_progress": 0,
+                    "pending_qc_total": pending_qc_total,
+                })
+                await asyncio.sleep(60)
+                return
+
         target = DIVISIONS["product_rd"]["products_per_cycle"]
         candidates = await self._select_generation_candidates(target)
         source_names = ", ".join(sorted({candidate.get("source", "internal") for candidate in candidates[:3]}))
@@ -412,7 +556,13 @@ class AgentOrchestrator:
         normalized["opportunity_score"] = round(opportunity_score, 1)
         normalized["opportunity_source"] = candidate.get("source") or normalized.get("opportunity_source") or "agent_rd"
         normalized["market_size"] = candidate.get("market_size") or normalized.get("market_size") or "Growing"
-        normalized["featured_candidate"] = bool(normalized.get("featured_candidate")) or opportunity_score >= 88
+        normalized["content_signature"] = normalized.get("content_signature") or self._content_signature({
+            "title": title,
+            "description": description,
+            "niche": niche,
+            "keywords": keywords,
+        })
+        normalized["featured_candidate"] = bool(normalized.get("featured_candidate")) or opportunity_score >= self.auto_feature_min_score
         normalized["campaign_priority"] = "auto" if normalized["featured_candidate"] else "review"
         normalized.setdefault("revenue", 0.0)
         normalized.setdefault("conversions", 0)
@@ -500,14 +650,55 @@ class AgentOrchestrator:
                 grade = report.get("grade", "F")
                 passed = bool(report.get("ready_for_sale"))
             except Exception as exc:
-                logger.error(f"QC engine fallback for {p.get('id')}: {exc}")
-                score = round(random.uniform(60, 98), 1)
-                grade = "A+" if score >= 95 else ("A" if score >= 90 else ("B+" if score >= 85 else ("B" if score >= 80 else ("C" if score >= 70 else "D"))))
-                passed = score >= 80
-                report = None
+                logger.error(f"QC engine failure for {p.get('id')}: {exc}")
+                await self.db.products.update_one(
+                    {"id": p["id"]},
+                    {"$set": {
+                        "status": "qc_error",
+                        "qc_score": 0.0,
+                        "qc_grade": "ERROR",
+                        "qc_report": None,
+                        "qc_passed": False,
+                        "qc_ready": False,
+                        "qc_error_reason": str(exc),
+                        "qc_error_at": datetime.now(timezone.utc).isoformat(),
+                        "launch_score": 0.0,
+                        "featured_candidate": False,
+                        "campaign_priority": "blocked",
+                        "store_ready": False,
+                        "store_ready_at": None,
+                    }}
+                )
+                await self._log(
+                    "Inspector Two",
+                    "quality_control",
+                    f"⚠ QC ERROR: «{p.get('title','?')[:45]}» — engine failure blocked release",
+                    "error",
+                )
+                continue
 
-            status = "approved" if passed else "rejected"
+            content_signature = p.get("content_signature") or self._content_signature(p)
+            duplicate_of = await self._find_duplicate_product({**p, "content_signature": content_signature})
+            blocking_issues = list(report.get("blocking_issues") or [])
+            improvements = list(report.get("improvements") or [])
+
+            if duplicate_of:
+                blocking_issues.append("Duplicate Content")
+                improvements.append(f"Rewrite the product so it is materially different from product {duplicate_of}.")
+                score = min(score, 35.0)
+                grade = "F"
+                passed = False
+
+            report["blocking_issues"] = list(dict.fromkeys(blocking_issues))
+            report["improvements"] = list(dict.fromkeys(improvements))
+            report["overall_score"] = round(score, 1)
+            report["grade"] = grade
+            report["passed"] = bool(report.get("passed")) and not duplicate_of
+            report["ready_for_sale"] = bool(report.get("ready_for_sale")) and not duplicate_of
+
             launch_score = self._calculate_launch_score(p, qc_score=score)
+            auto_featured = bool(report.get("ready_for_sale")) and not report.get("blocking_issues") and score >= self.auto_feature_min_score
+            status = "approved" if report.get("ready_for_sale") else ("duplicate" if duplicate_of else "rejected")
             await self.db.products.update_one(
                 {"id": p["id"]},
                 {"$set": {
@@ -515,17 +706,22 @@ class AgentOrchestrator:
                     "qc_score": score,
                     "qc_grade": grade,
                     "qc_report": report,
-                    "qc_passed": bool(report.get("passed")) if report else passed,
-                    "qc_ready": bool(report.get("ready_for_sale")) if report else passed,
+                    "qc_passed": bool(report.get("passed")),
+                    "qc_ready": bool(report.get("ready_for_sale")),
+                    "qc_checked_at": datetime.now(timezone.utc).isoformat(),
+                    "qc_error_reason": None,
+                    "qc_error_at": None,
+                    "content_signature": content_signature,
+                    "duplicate_of": duplicate_of,
                     "launch_score": launch_score,
-                    "featured_candidate": launch_score >= 88,
-                    "campaign_priority": "auto" if launch_score >= 88 else "review",
-                    "store_ready": passed,
-                    "store_ready_at": datetime.now(timezone.utc).isoformat() if passed else None,
+                    "featured_candidate": auto_featured,
+                    "campaign_priority": "auto" if auto_featured else ("blocked" if report.get("blocking_issues") else "review"),
+                    "store_ready": bool(report.get("ready_for_sale")),
+                    "store_ready_at": datetime.now(timezone.utc).isoformat() if report.get("ready_for_sale") else None,
                 }}
             )
-            label = "✓ APPROVED" if passed else "✗ REJECTED"
-            level = "success" if passed else "error"
+            label = "✓ APPROVED" if status == "approved" else ("⚠ DUPLICATE" if status == "duplicate" else "✗ REJECTED")
+            level = "success" if status == "approved" else ("warning" if status == "duplicate" else "error")
             await self._log("Inspector Two", "quality_control",
                 f"{label}: «{p.get('title','?')[:45]}» — {score:.0f}/100 ({grade})", level)
             await self._set_state("quality_control", {
@@ -549,8 +745,33 @@ class AgentOrchestrator:
         if self.db is None:
             await asyncio.sleep(30)
             return
+        pending_approvals = await self.db.campaigns.count_documents({"status": "pending_approval"})
+        if pending_approvals >= self.max_pending_campaign_approvals:
+            active = await self.db.campaigns.count_documents({"status": "active"})
+            await self._set_state("social_ads", {
+                "current_task": f"Paused — approval queue at {pending_approvals}/{self.max_pending_campaign_approvals}",
+                "pending_approvals": pending_approvals,
+                "active_campaigns": active,
+            })
+            await self._log(
+                "Ad Builder",
+                "social_ads",
+                f"Backpressure active — {pending_approvals} campaigns already waiting for approval",
+                "warning",
+            )
+            await asyncio.sleep(60)
+            return
+
         products = await self.db.products.find(
-            {"status": "approved", "campaign_created": {"$ne": True}},
+            {
+                "status": "approved",
+                "qc_ready": True,
+                "campaign_created": {"$ne": True},
+                "$or": [
+                    {"featured_candidate": True},
+                    {"launch_score": {"$gte": self.auto_feature_min_score}},
+                ],
+            },
             {"_id": 0}
         ).sort([
             ("launch_score", -1),
@@ -575,7 +796,8 @@ class AgentOrchestrator:
                 break
             title = product.get("title", "Product")[:45]
             launch_score = float(product.get("launch_score") or 0)
-            auto_launch = bool(product.get("featured_candidate")) or launch_score >= 88
+            auto_launch = self._is_auto_launch_eligible(product)
+            review_reason = "" if auto_launch else self._campaign_review_reason(product)
             await self._log("Creator Alpha", "social_ads",
                 f"Building campaign: {title}", "info")
 
@@ -601,6 +823,7 @@ class AgentOrchestrator:
                 "status": "active" if auto_launch else "pending_approval",
                 "approval_required": not auto_launch,
                 "launch_score": launch_score,
+                "review_reason": review_reason,
                 "type": "product",
             }
             try:
@@ -611,6 +834,7 @@ class AgentOrchestrator:
                         "campaign_created": True,
                         "campaign_id": campaign["id"],
                         "campaign_status": campaign["status"],
+                        "campaign_review_reason": review_reason or None,
                         "ads_live": auto_launch,
                         "ads_live_at": datetime.now(timezone.utc).isoformat() if auto_launch else None,
                     }}
@@ -623,7 +847,7 @@ class AgentOrchestrator:
                     "success")
             else:
                 await self._log("Ad Builder", "social_ads",
-                    f"🔔 Campaign ready for your approval: «{title}» · Est. reach {campaign['estimated_reach']}",
+                    f"🔔 Campaign ready for approval: «{title}» · {review_reason or 'review required'} · Est. reach {campaign['estimated_reach']}",
                     "warning")
 
         pending = await self.db.campaigns.count_documents({"status": "pending_approval"})
@@ -663,7 +887,7 @@ class AgentOrchestrator:
             await asyncio.sleep(30)
             return
         products = await self.db.products.find(
-            {"status": {"$in": ["approved", "ready"]}, "published": {"$ne": True}},
+            {"status": {"$in": ["approved", "ready"]}, "qc_ready": True, "published": {"$ne": True}},
             {"_id": 0}
         ).sort([
             ("launch_score", -1),
@@ -685,7 +909,24 @@ class AgentOrchestrator:
             if not self._running.get("distribution"):
                 break
             title = product.get("title", "Product")[:45]
-            markets = ["Store", *random.sample(self.MARKETPLACES, random.randint(3, 5))]
+            if not self._is_auto_publish_eligible(product):
+                review_reason = self._distribution_review_reason(product)
+                await self.db.products.update_one(
+                    {"id": product.get("id")},
+                    {"$set": {
+                        "distribution_status": "review_required",
+                        "distribution_review_reason": review_reason,
+                    }}
+                )
+                await self._log(
+                    "Publisher One",
+                    "distribution",
+                    f"⏸ Held for review: «{title}» — {review_reason}",
+                    "warning",
+                )
+                continue
+
+            markets = self._publication_targets()
             await self._log("Publisher One", "distribution",
                 f"Publishing «{title}» to {len(markets)} platforms", "info")
             published_links = self._build_distribution_links(product, markets)
@@ -701,10 +942,12 @@ class AgentOrchestrator:
                     {"$set": {
                         "published": True,
                         "status": "published",
-                        "featured": bool(product.get("featured_candidate")) or float(product.get("launch_score") or 0) >= 88,
+                        "featured": bool(product.get("featured_candidate")) or float(product.get("launch_score") or 0) >= self.auto_feature_min_score,
                         "published_on": published_links,
                         "marketplace_links": published_links,
                         "store_url": next((entry["url"] for entry in published_links if entry["platform"] == "Store"), None),
+                        "distribution_status": "auto_published",
+                        "distribution_review_reason": None,
                         "published_at": datetime.now(timezone.utc).isoformat(),
                     }}
                 )
@@ -744,6 +987,9 @@ class AgentOrchestrator:
             else:
                 url = f"{frontend_url}/store"
             links.append({"platform": market, "url": url, "status": "live"})
+
+        if not self.enable_external_marketplace_autopublish:
+            links = [entry for entry in links if entry["platform"] == "Store"]
 
         return links
 
@@ -1078,8 +1324,20 @@ class AgentOrchestrator:
                 "published_products": await self.db.products.count_documents({"$or": [{"status": "published"}, {"published": True}]}),
                 "store_ready": await self.db.products.count_documents({"status": {"$in": ["approved", "ready", "published"]}}),
                 "live_campaigns": await self.db.campaigns.count_documents({"status": "active"}),
+                "qc_errors": await self.db.products.count_documents({"status": "qc_error"}),
+                "duplicate_products": await self.db.products.count_documents({"status": "duplicate"}),
+                "review_required_products": await self.db.products.count_documents({"distribution_status": "review_required"}),
                 "revenue_total": round(revenue_totals[0].get("total", 0), 2) if revenue_totals else 0,
                 "active_divisions": sum(1 for r in self._running.values() if r),
+                "guardrails": {
+                    "auto_feature_min_score": self.auto_feature_min_score,
+                    "auto_launch_min_score": self.auto_launch_min_score,
+                    "auto_publish_min_score": self.auto_publish_min_score,
+                    "require_human_campaign_approval": self.require_human_campaign_approval,
+                    "enable_external_marketplace_autopublish": self.enable_external_marketplace_autopublish,
+                    "max_pending_qc_queue": self.max_pending_qc_queue,
+                    "max_pending_campaign_approvals": self.max_pending_campaign_approvals,
+                },
             }
         except Exception as e:
             logger.error(f"Metrics error: {e}")

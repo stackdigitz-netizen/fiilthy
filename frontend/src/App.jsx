@@ -12,6 +12,11 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import VaultPage from './pages/VaultPage';
 import SettingsPage from './pages/SettingsPage';
 import StorePage from './pages/StorePage';
+import ProductsPage from './pages/ProductsPage';
+import ProjectsPage from './pages/ProjectsPage';
+import ProductLaunchPage from './pages/ProductLaunchPage';
+import SocialMediaPage from './pages/SocialMediaPage';
+import GrowthPage from './pages/GrowthPage';
 import './App.css';
 
 function AppRoutes() {
@@ -39,6 +44,11 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<CommandCenterPage />} />
         <Route path="/store" element={<StorePage />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/launch" element={<ProductLaunchPage />} />
+        <Route path="/social-media" element={<SocialMediaPage />} />
+        <Route path="/growth" element={<GrowthPage />} />
         <Route path="/approvals" element={<ApprovalQueuePage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/vault" element={<VaultPage />} />

@@ -198,3 +198,31 @@ class TestQCEngine:
         report = engine.run(product)
         assert report.overall_score < 80
         assert not report.ready_for_sale
+
+    def test_rejects_known_boilerplate_description(self):
+        from ai_services.product_quality_engine import ProductQualityEngine
+
+        engine = ProductQualityEngine()
+        product = {
+            "id": "boilerplate-1",
+            "title": "Korean Beauty Digital Lookbook Template Revenue System",
+            "description": (
+                "Korean Beauty Digital Lookbook Template Revenue System is built for founders, freelancers, and creators who want a cleaner path to revenue inside Korean beauty digital lookbook. "
+                "It combines positioning guidance, concrete implementation steps, offer structure, and launch assets so buyers can move from idea to sellable offer without wasting weeks on scattered research. "
+                "Instead of vague theory, this product focuses on execution, packaging, and conversion so it is ready to market and deliver immediately."
+            ),
+            "product_type": "template",
+            "price": 39.0,
+            "sections": ["Planning", "Execution", "Measurement"],
+            "keywords": ["korean beauty", "lookbook", "template", "digital product", "brand assets"],
+            "benefits": [
+                "Launch a polished lookbook quickly",
+                "Speed up product packaging",
+                "Organize campaign visuals",
+            ],
+            "target_audience": "Beauty founders who want a premium digital lookbook workflow",
+            "image_url": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=1200&q=80",
+        }
+        report = engine.run(product)
+        assert not report.ready_for_sale
+        assert any(check.name == "Uniqueness" and check.status.value == "fail" for check in report.checks)

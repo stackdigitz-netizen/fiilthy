@@ -4,29 +4,29 @@
    ============================================================================ */
 
 :root {
-  /* Dark Hologram Colors */
-  --color-primary: #00ffff;
-  --color-primary-dark: #00ccff;
-  --color-primary-light: #00ffff;
-  
-  --color-secondary: #ff00ff;
-  --color-success: #00ff88;
-  --color-warning: #ffcc00;
-  --color-error: #ff0055;
-  --color-info: #00aaff;
-  
-  --color-bg: #0a0e27;
-  --color-bg-secondary: #151b3a;
-  --color-bg-tertiary: #1f2844;
-  
-  --color-text-primary: #e0f7ff;
-  --color-text-secondary: #a0d5ff;
-  --color-text-tertiary: #7fa5ff;
-  
-  --color-border: #00ffff;
-  --color-border-light: #00ccff;
-  
-  --color-shadow: rgba(0, 255, 255, 0.1);
+  /* Black / Gold / White Theme */
+  --color-primary: #d4af37;
+  --color-primary-dark: #8f6b14;
+  --color-primary-light: #f4dd91;
+
+  --color-secondary: #f5efe0;
+  --color-success: #d4af37;
+  --color-warning: #f4dd91;
+  --color-error: #c2410c;
+  --color-info: #f5efe0;
+
+  --color-bg: #050505;
+  --color-bg-secondary: #0d0d0d;
+  --color-bg-tertiary: #171717;
+
+  --color-text-primary: #f8f4ea;
+  --color-text-secondary: #dbc88e;
+  --color-text-tertiary: #a5966c;
+
+  --color-border: rgba(212, 175, 55, 0.24);
+  --color-border-light: rgba(255, 255, 255, 0.08);
+
+  --color-shadow: rgba(0, 0, 0, 0.45);
   
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -64,23 +64,8 @@
   --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
 }
 
-[data-theme="dark"] {
-  --color-bg: #0a0e27;
-  --color-bg-secondary: #151b3a;
-  --color-bg-tertiary: #1f2844;
-  
-  --color-text-primary: #e0f7ff;
-  --color-text-secondary: #a0d5ff;
-  --color-text-tertiary: #7fa5ff;
-  
-  --color-border: #00ffff;
-  --color-border-light: #00ccff;
-  
-  --color-shadow: rgba(0, 255, 255, 0.1);
-}
-
 /* ============================================================================
-   Global Styles - Dark Hologram Theme
+   Global Styles - Clean Light Theme
    ============================================================================ */
 
 * {
@@ -96,30 +81,12 @@ html, body, #root {
 
 body {
   font-family: var(--font-family-base);
-  background: linear-gradient(135deg, #0a0e27 0%, #151b3a 50%, #0a0e27 100%);
-  background-attachment: fixed;
+  background: #050505;
   color: var(--color-text-primary);
-  transition: all var(--transition-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  position: relative;
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-/* Add hologram background effect */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(ellipse at 20% 50%, rgba(0, 255, 255, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(255, 0, 255, 0.03) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* ============================================================================
@@ -149,49 +116,40 @@ button {
 }
 
 .btn-primary {
-  background-color: var(--color-primary);
-  color: #000;
-  border: 1px solid var(--color-primary);
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5), inset 0 0 10px rgba(0, 255, 255, 0.1);
-  text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+  background: linear-gradient(135deg, #b88924 0%, #d4af37 55%, #f1da8b 100%);
+  color: #050505;
+  border: 1px solid rgba(212, 175, 55, 0.8);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.8), inset 0 0 15px rgba(0, 255, 255, 0.2);
-  transform: translateY(-2px);
-  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  background: linear-gradient(135deg, #c89a2f 0%, #e0bc4d 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(212, 175, 55, 0.22);
 }
 
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: 0 0 5px rgba(0, 255, 255, 0.2);
 }
 
 .btn-secondary {
-  background-color: var(--color-bg-tertiary);
+  background-color: rgba(255, 255, 255, 0.04);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-secondary);
-  box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+  border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover {
-  background-color: rgba(255, 0, 255, 0.1);
-  box-shadow: 0 0 20px rgba(255, 0, 255, 0.6);
-  border-color: var(--color-secondary);
+  background-color: rgba(212, 175, 55, 0.12);
 }
 
 .btn-success {
-  background-color: var(--color-bg-tertiary);
-  color: var(--color-success);
-  border: 1px solid var(--color-success);
-  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+  background-color: rgba(212, 175, 55, 0.14);
+  color: var(--color-primary-light);
+  border: 1px solid rgba(212, 175, 55, 0.34);
 }
 
 .btn-success:hover {
-  background-color: rgba(0, 255, 136, 0.05);
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+  background-color: rgba(212, 175, 55, 0.2);
 }
 
 .btn-icon {
@@ -678,6 +636,7 @@ button {
   align-items: center;
   gap: var(--spacing-md);
   cursor: pointer;
+  -webkit-user-select: none;
   user-select: none;
 }
 
