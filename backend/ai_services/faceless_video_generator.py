@@ -116,6 +116,11 @@ class FacelessVideoGenerator:
                     duration=duration,
                     video_id=video_id
                 )
+                if not video_path or not os.path.exists(video_path):
+                    return {
+                        "success": False,
+                        "error": "Video composition failed - no output file created"
+                    }
             else:
                 logger.warning("MoviePy not available - returning mock response")
                 video_path = str(self.output_dir / f"video_{video_id}.mp4")
@@ -242,27 +247,38 @@ Get it now for ${price}. Link in bio!"""
         """Generate voiceover audio using ElevenLabs"""
         
         try:
-            if not ELEVENLABS_AVAILABLE or not self.client:
+            if not ELEVENLABS_AVAILABLE or not self.elevenlab_api_key:
                 logger.warning("ElevenLabs not available - using fallback")
                 return str(self.temp_dir / f"voiceover_{video_id}.mp3")
             
-            # Use ElevenLabs API to generate voiceover
+            # Use ElevenLabs API directly (HTTP)
             audio_path = str(self.temp_dir / f"voiceover_{video_id}.mp3")
             
-            # Generate with professional voice
-            response = await asyncio.to_thread(
-                self.client.generate,
-                text=script,
-                voice="Rachel",  # Professional female voice
-                model="eleven_monolingual_v1"
-            )
-            
-            # Save audio
-            with open(audio_path, "wb") as f:
-                for chunk in response:
-                    f.write(chunk)
-            
-            return audio_path
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",  # Rachel voice
+                    headers={
+                        "xi-api-key": self.elevenlab_api_key,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "text": script,
+                        "model_id": "eleven_monolingual_v1",
+                        "voice_settings": {
+                            "stability": 0.75,
+                            "similarity_boost": 0.75
+                        }
+                    },
+                    timeout=60
+                )
+                
+                if response.status_code == 200:
+                    with open(audio_path, "wb") as f:
+                        f.write(response.content)
+                    return audio_path
+                else:
+                    logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
+                    return None
         
         except Exception as e:
             logger.error(f"Voiceover generation failed: {str(e)}")
@@ -447,7 +463,7 @@ Get it now for ${price}. Link in bio!"""
             
             # Concatenate clips and loop if needed
             main_clip = concatenate_videoclips(video_clips)
-            main_clip = main_clip.subclipped(0, duration)
+            main_clip = main_clip.subclip(0, duration)
             
             # Add voiceover
             if os.path.exists(voiceover_path):
@@ -456,15 +472,20 @@ Get it now for ${price}. Link in bio!"""
             
             # Add text overlays
             final_clips = [main_clip]
-            for overlay in text_overlays:
-                txt_clip = TextClip(
-                    overlay["text"],
-                    fontsize=overlay["fontsize"],
-                    color=overlay["color"],
-                    font="Arial-Bold"
-                ).set_duration(overlay["duration"]).set_start(overlay["start"])
-                
-                final_clips.append(txt_clip.set_position(overlay["position"]))
+            # Skip text overlays for now due to ImageMagick dependency
+            # for overlay in text_overlays:
+            #     try:
+            #         txt_clip = TextClip(
+            #             overlay["text"],
+            #             fontsize=overlay["fontsize"],
+            #             color=overlay["color"],
+            #             font="Arial-Bold"
+            #         ).set_duration(overlay["duration"]).set_start(overlay["start"])
+            #         
+            #         final_clips.append(txt_clip.set_position(overlay["position"]))
+            #     except Exception as e:
+            #         logger.warning(f"Text overlay failed: {str(e)}")
+            #         continue
             
             # Composite all layers
             final_video = CompositeVideoClip(final_clips, size=(1080, 1920))

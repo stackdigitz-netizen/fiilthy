@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Radar, Users, Zap, TrendingUp, RefreshCw, Play, FastForward, ChevronRight } from 'lucide-react';
 import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const REVENUE_COLORS = {
   very_high: { bg: '#28a74520', color: '#28a745' },

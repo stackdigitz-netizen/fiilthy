@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',

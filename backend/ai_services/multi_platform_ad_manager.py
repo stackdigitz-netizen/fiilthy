@@ -540,10 +540,10 @@ class BaseHttpPlatformManager:
     @staticmethod
     def _missing_config(platform: str, missing_fields: List[str]) -> Dict[str, Any]:
         return {
-            "status": "error",
+            "status": "not_configured",
             "platform": platform,
             "live": False,
-            "message": f"Missing required configuration: {', '.join(missing_fields)}"
+            "message": f"Platform requires configuration. Missing: {', '.join(missing_fields)}"
         }
 
     @staticmethod
@@ -627,11 +627,18 @@ class FacebookAdsManager(BaseHttpPlatformManager):
             link_data["picture"] = images[0]
 
         story_spec = {
-            "page_id": self.page_id,
             "link_data": link_data,
         }
+        
+        # Use Instagram account if available, otherwise use Facebook Page
         if self.instagram_actor_id:
             story_spec["instagram_actor_id"] = self.instagram_actor_id
+        elif self.page_id:
+            story_spec["page_id"] = self.page_id
+        else:
+            # Fallback - this shouldn't happen due to validation above
+            raise ValueError("Either page_id or instagram_actor_id must be configured")
+            
         return story_spec
     
     async def create_campaign(self, **kwargs) -> Dict[str, Any]:
@@ -640,8 +647,9 @@ class FacebookAdsManager(BaseHttpPlatformManager):
             missing.append("META_ACCESS_TOKEN")
         if not self.ad_account_id:
             missing.append("META_AD_ACCOUNT_ID")
-        if not self.page_id:
-            missing.append("META_PAGE_ID")
+        # Make page_id optional - can use Instagram account instead
+        if not self.page_id and not self.instagram_actor_id:
+            missing.append("META_PAGE_ID or INSTAGRAM_BUSINESS_ACCOUNT_ID")
         if missing:
             return self._missing_config("facebook_ads", missing)
 

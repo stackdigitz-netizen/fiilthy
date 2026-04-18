@@ -3,8 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { Loader, AlertCircle, Check, Plus, Trash2, Share2, Calendar, TrendingUp, Copy, ExternalLink } from 'lucide-react';
 import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 export default function SocialMediaPage() {
   const [searchParams] = useSearchParams();

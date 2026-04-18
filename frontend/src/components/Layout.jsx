@@ -6,8 +6,9 @@ import './Layout.css';
 import {
   Menu, X, Cpu, Bell, LineChart, Shield, Settings, ShoppingBag, Package, FolderOpen, Rocket, Share2, TrendingUp,
 } from 'lucide-react';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const Layout = ({ children }) => {
   const location = useLocation();

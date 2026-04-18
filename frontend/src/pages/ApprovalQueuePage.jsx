@@ -4,8 +4,9 @@ import {
   Package, Link2, Megaphone, RefreshCw,
 } from 'lucide-react';
 import './ApprovalQueue.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const TYPE_ICON = {
   product:   <Package size={14} />,

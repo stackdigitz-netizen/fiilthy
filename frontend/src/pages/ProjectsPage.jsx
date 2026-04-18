@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FolderOpen, Download, Trash2, Plus, Globe, ChevronRight, RefreshCw, BookOpen, CheckSquare, Square, Clapperboard, Copy, AlertTriangle } from 'lucide-react';
 import WorkflowGuide from '../components/WorkflowGuide';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 /* ─── Score ring ─────────────────────────────────────────────── */
 const ScoreRing = ({ score }) => {

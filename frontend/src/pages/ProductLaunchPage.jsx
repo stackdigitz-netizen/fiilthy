@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Package, Rocket, Palette, Play, Video, Target, AlertCircle, CheckCircle, Clock, Download, ExternalLink } from 'lucide-react';
 import BrandingEditor from '../components/BrandingEditor';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');

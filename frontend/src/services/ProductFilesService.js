@@ -3,7 +3,9 @@
  * Converts raw files into structured product data
  */
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+import API_URL from '../config/api';
+
+const API_BASE_URL = API_URL;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');

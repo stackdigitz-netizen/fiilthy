@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import API_URL from '../config/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ const FactoryDashboard = () => {
 
   const [recentProducts, setRecentProducts] = useState([]);
   const pollRef = useRef(null);
-  const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+  const API = API_URL;
 
   // Load real products from backend on mount
   useEffect(() => {

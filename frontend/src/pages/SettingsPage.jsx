@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, ExternalLink, Plus, RefreshCw, Save, X } from 'lucide-react';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const BACKEND_KEY_TEMPLATES = [
   { name: 'openai_key', label: 'OpenAI API Key', category: 'AI', description: 'Used for product ideation, copy, and AI generation.' },

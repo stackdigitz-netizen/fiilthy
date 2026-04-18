@@ -5,8 +5,9 @@ import {
   Clock, CheckCircle2, AlertCircle, Bell, TrendingUp,
 } from 'lucide-react';
 import './CommandCenter.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const DIVISION_META = {
   product_rd:      { icon: FlaskConical,  label: 'Product R&D' },

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bot, Bell, TrendingUp, Package, Target, CheckCircle, RefreshCw, BellOff } from 'lucide-react';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const AssistantPage = () => {
   const [status, setStatus] = useState(null);

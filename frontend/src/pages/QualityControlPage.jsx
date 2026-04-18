@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Play, Clock, TrendingUp, Award } from 'lucide-react';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');

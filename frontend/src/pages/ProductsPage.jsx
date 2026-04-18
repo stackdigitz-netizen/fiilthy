@@ -4,8 +4,9 @@ import { Package, Clock, TrendingUp, Zap, Image, Loader, Check, X, Share2, Folde
 import WorkflowGuide from '../components/WorkflowGuide';
 import ProductsDashboard from '../components/ProductsDashboard';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 const HIDDEN_PRODUCT_STATUSES = new Set(['rejected', 'duplicate', 'retired', 'qc_error']);
 
 const getAuthHeaders = () => {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Plus, Trash2, CheckCircle, XCircle, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import './Pages.css';
+import API_URL from '../config/api';
 
-const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const API = API_URL;
 
 const CATEGORY_LABELS = {
   payments: '💳 Payments',

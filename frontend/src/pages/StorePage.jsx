@@ -5,10 +5,9 @@ import {
   ArrowLeft, Package,
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import API_URL from '../config/api';
 
-const API = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : 'https://adequate-respect-production-7ef0.up.railway.app';
+const API = API_URL;
 
 const CACHE_KEY = 'store_products_v4';
 const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
