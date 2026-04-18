@@ -47,6 +47,9 @@ class UserResponse(UserBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    plan: str = "free"
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
 
     class Config:
         from_attributes = True

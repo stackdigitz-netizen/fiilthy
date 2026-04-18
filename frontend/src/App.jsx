@@ -17,6 +17,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProductLaunchPage from './pages/ProductLaunchPage';
 import SocialMediaPage from './pages/SocialMediaPage';
 import GrowthPage from './pages/GrowthPage';
+import SuccessPage from './pages/SuccessPage';
 import './App.css';
 
 function AppRoutes() {
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Route path="/store" element={<StorePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/success" element={<SuccessPage />} />
         <Route path="/:page" element={<LegalPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -53,6 +55,7 @@ function AppRoutes() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/vault" element={<VaultPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/success" element={<SuccessPage />} />
         <Route path="/:page" element={<LegalPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

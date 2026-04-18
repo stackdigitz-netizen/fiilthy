@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API_URL from '../config/api';
 import BrandLogo from '../components/BrandLogo';
@@ -13,7 +13,10 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
+
+  const plan = searchParams.get('plan') || 'free';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,6 +52,33 @@ export default function SignupPage() {
 
       const { access_token, user } = data;
       login(access_token, user);
+
+      // Redirect to Stripe if the user selected a paid plan
+      if (plan === 'empire') {
+        try {
+          const subRes = await fetch(`${API_URL}/api/payments/subscribe`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${access_token}`,
+            },
+            body: JSON.stringify({
+              customer_email: email,
+              plan: 'empire',
+              success_url: `${window.location.origin}/success`,
+              cancel_url: `${window.location.origin}/#pricing`,
+            }),
+          });
+          const subData = await subRes.json();
+          if (subData.checkout_url) {
+            window.location.href = subData.checkout_url;
+            return;
+          }
+        } catch (subErr) {
+          console.warn('Subscription redirect failed, going to dashboard:', subErr);
+        }
+      }
+
       navigate('/');
     } catch (err) {
       setError(err.message);
@@ -62,7 +92,17 @@ export default function SignupPage() {
       <div className="auth-card">
         <div className="auth-header">
           <BrandLogo theme="light" size="md" />
-          <p>Create Your Digital Empire Account</p>
+          {plan === 'empire' ? (
+            <>
+              <p>Create Your Account</p>
+              <div style={{ display: 'inline-block', background: 'linear-gradient(135deg, #b88924, #d4af37)', color: '#050505', fontWeight: 700, fontSize: '14px', padding: '4px 14px', borderRadius: '999px', marginTop: '8px' }}>
+                Empire Builder — $49/mo
+              </div>
+              <p style={{ fontSize: '13px', color: '#888', marginTop: '8px' }}>After signup you'll complete your subscription securely via Stripe.</p>
+            </>
+          ) : (
+            <p>Create Your Digital Empire Account</p>
+          )}
         </div>
 
         {error && <div className="auth-error">{error}</div>}
@@ -116,7 +156,9 @@ export default function SignupPage() {
           </div>
 
           <button type="submit" disabled={loading} className="auth-button">
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading
+              ? (plan === 'empire' ? 'Creating Account...' : 'Creating Account...')
+              : (plan === 'empire' ? 'Create Account & Start Subscription →' : 'Create Account')}
           </button>
         </form>
 
