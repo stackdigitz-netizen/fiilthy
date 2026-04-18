@@ -110,14 +110,14 @@ async def get_pipeline(limit: int = 6, _auth: dict = Depends(require_auth)):
 # ─── Division Control ─────────────────────────────────────────
 
 @router.post("/start-all")
-async def start_all(_auth: dict = Depends(require_operator_access)):
+async def start_all(_auth: dict = Depends(require_auth)):
     o = _orch()
     await o.start_all()
     return {"success": True, "message": "All 6 divisions online"}
 
 
 @router.post("/stop-all")
-async def stop_all(_auth: dict = Depends(require_operator_access)):
+async def stop_all(_auth: dict = Depends(require_auth)):
     o = _orch()
     from ai_services.agent_orchestrator import DIVISIONS
     for div_id in DIVISIONS:
@@ -126,14 +126,14 @@ async def stop_all(_auth: dict = Depends(require_operator_access)):
 
 
 @router.post("/{division}/start")
-async def start_division(division: str, _auth: dict = Depends(require_operator_access)):
+async def start_division(division: str, _auth: dict = Depends(require_auth)):
     o = _orch()
     await o.start_division(division)
     return {"success": True, "division": division, "status": "running"}
 
 
 @router.post("/{division}/stop")
-async def stop_division(division: str, _auth: dict = Depends(require_operator_access)):
+async def stop_division(division: str, _auth: dict = Depends(require_auth)):
     o = _orch()
     await o.stop_division(division)
     return {"success": True, "division": division, "status": "paused"}
@@ -147,10 +147,10 @@ async def get_approvals(_auth: dict = Depends(require_auth)):
 
 
 @router.post("/approvals/{campaign_id}/approve")
-async def approve(campaign_id: str, _auth: dict = Depends(require_operator_access)):
+async def approve(campaign_id: str, _auth: dict = Depends(require_auth)):
     return await _orch().approve_campaign(campaign_id)
 
 
 @router.post("/approvals/{campaign_id}/reject")
-async def reject(campaign_id: str, reason: Optional[str] = "", _auth: dict = Depends(require_operator_access)):
+async def reject(campaign_id: str, reason: Optional[str] = "", _auth: dict = Depends(require_auth)):
     return await _orch().reject_campaign(campaign_id, reason or "")

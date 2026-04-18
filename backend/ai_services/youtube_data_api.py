@@ -5,15 +5,17 @@ Handles OAuth flow, video uploads, playlist management, and analytics
 
 import os
 import json
+import base64
 import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
 
 # Optional YouTube imports
 try:
     import google.auth.transport.requests
-    from google.auth.oauthlib.flow import Flow
+    from google_auth_oauthlib.flow import Flow
     from google.oauth2.credentials import Credentials
     from google.auth.transport.urllib3 import Request
     from googleapiclient.discovery import build
@@ -29,11 +31,37 @@ logger = logging.getLogger(__name__)
 
 # OAuth 2.0 Configuration
 CLIENT_SECRETS = os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", "youtube_client_secret.json")
+CLIENT_SECRETS_JSON_ENV = "YOUTUBE_CLIENT_SECRETS_JSON"
+CREDENTIALS_JSON_ENV = "YOUTUBE_CREDENTIALS_JSON"
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.readonly"
 ]
+
+
+def _runtime_json_path(filename: str) -> Path:
+    base_dir = Path("/tmp") if (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")) else Path.cwd()
+    return base_dir / filename
+
+
+def _decode_env_json(raw_value: str) -> dict:
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        decoded = base64.b64decode(raw_value).decode("utf-8")
+        return json.loads(decoded)
+
+
+def _materialize_env_json(env_name: str, filename: str) -> Optional[str]:
+    raw_value = os.getenv(env_name)
+    if not raw_value:
+        return None
+
+    payload = _decode_env_json(raw_value)
+    target_path = _runtime_json_path(filename)
+    target_path.write_text(json.dumps(payload), encoding="utf-8")
+    return str(target_path)
 
 
 class YouTubeDataAPI:
@@ -47,6 +75,30 @@ class YouTubeDataAPI:
         self.credentials = None
         self.youtube_service = None
         self.channel_id = None
+
+    def _resolve_client_secrets_path(self) -> str:
+        if os.path.exists(CLIENT_SECRETS):
+            return CLIENT_SECRETS
+
+        materialized = _materialize_env_json(CLIENT_SECRETS_JSON_ENV, "youtube_client_secret.runtime.json")
+        if materialized:
+            return materialized
+
+        return CLIENT_SECRETS
+
+    def _resolve_credentials_path(self) -> Optional[str]:
+        if self.credentials_file and os.path.exists(self.credentials_file):
+            return self.credentials_file
+
+        materialized = _materialize_env_json(
+            CREDENTIALS_JSON_ENV,
+            Path(self.credentials_file or "youtube_credentials.runtime.json").name,
+        )
+        if materialized:
+            self.credentials_file = materialized
+            return materialized
+
+        return self.credentials_file
     
     def get_auth_url(self, redirect_uri: str = "http://localhost:8000/callback") -> str:
         """Get YouTube OAuth authorization URL"""
@@ -55,11 +107,12 @@ class YouTubeDataAPI:
             if not YOUTUBE_AVAILABLE:
                 raise ImportError("YouTube API libraries not installed")
             
-            if not os.path.exists(CLIENT_SECRETS):
-                raise FileNotFoundError(f"Client secrets file not found: {CLIENT_SECRETS}")
+            client_secrets_path = self._resolve_client_secrets_path()
+            if not os.path.exists(client_secrets_path):
+                raise FileNotFoundError(f"Client secrets file not found: {client_secrets_path}")
             
             flow = Flow.from_client_secrets_file(
-                CLIENT_SECRETS,
+                client_secrets_path,
                 scopes=SCOPES,
                 redirect_uri=redirect_uri
             )
@@ -77,11 +130,12 @@ class YouTubeDataAPI:
         """Handle OAuth callback and store credentials"""
         
         try:
-            if not os.path.exists(CLIENT_SECRETS):
-                raise FileNotFoundError(f"Client secrets file not found: {CLIENT_SECRETS}")
+            client_secrets_path = self._resolve_client_secrets_path()
+            if not os.path.exists(client_secrets_path):
+                raise FileNotFoundError(f"Client secrets file not found: {client_secrets_path}")
             
             flow = Flow.from_client_secrets_file(
-                CLIENT_SECRETS,
+                client_secrets_path,
                 scopes=SCOPES,
                 redirect_uri=redirect_uri
             )
@@ -115,10 +169,11 @@ class YouTubeDataAPI:
         """Load stored credentials from file"""
         
         try:
-            if not self.credentials_file or not os.path.exists(self.credentials_file):
+            credentials_path = self._resolve_credentials_path()
+            if not credentials_path or not os.path.exists(credentials_path):
                 return False
             
-            with open(self.credentials_file, "r") as f:
+            with open(credentials_path, "r") as f:
                 credentials_data = json.load(f)
             
             self.credentials = Credentials.from_authorized_user_info(credentials_data)
@@ -147,8 +202,11 @@ class YouTubeDataAPI:
         """Save credentials to file"""
         
         try:
-            if not self.credentials or not self.credentials_file:
+            if not self.credentials:
                 return
+
+            credentials_path = self._resolve_credentials_path() or str(_runtime_json_path("youtube_credentials.runtime.json"))
+            self.credentials_file = credentials_path
             
             credentials_data = {
                 "token": self.credentials.token,
@@ -159,10 +217,10 @@ class YouTubeDataAPI:
                 "scopes": self.credentials.scopes
             }
             
-            with open(self.credentials_file, "w") as f:
+            with open(credentials_path, "w") as f:
                 json.dump(credentials_data, f)
             
-            logger.info(f"Credentials saved to {self.credentials_file}")
+            logger.info(f"Credentials saved to {credentials_path}")
         
         except Exception as e:
             logger.error(f"Failed to save credentials: {str(e)}")

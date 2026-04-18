@@ -850,3 +850,129 @@ async def resend_download_link(session_id: str, body: ResendRequest, request: Re
         raise HTTPException(status_code=500, detail="Failed to send email — please contact support@fiilthy.ai")
 
     return {"success": True, "message": "Download link sent to your email"}
+
+
+# ─── Subscription Plans ───────────────────────────────────────────────────────
+
+SUBSCRIPTION_PLANS = {
+    "monthly": {
+        "id": "monthly",
+        "name": "FiiLTHY Monthly Membership",
+        "description": "Full access to every product, blueprint and template. New drops every month.",
+        "price_cents": 2900,
+        "interval": "month",
+        "label": "$29/month",
+        "perks": [
+            "Instant access to ALL products",
+            "New product drops every month",
+            "Priority support",
+            "Members-only templates & bonuses",
+            "Cancel any time",
+        ],
+    },
+    "annual": {
+        "id": "annual",
+        "name": "FiiLTHY Annual Membership",
+        "description": "Everything in Monthly, billed annually. Save $99 vs monthly.",
+        "price_cents": 24900,
+        "interval": "year",
+        "label": "$249/year",
+        "perks": [
+            "Everything in Monthly",
+            "Saves $99 vs monthly billing",
+            "Bonus: Private strategy vault",
+            "Annual member badge",
+            "Cancel any time",
+        ],
+    },
+}
+
+
+@router.get("/plans")
+async def get_subscription_plans():
+    """Return available membership plans — no auth required."""
+    return list(SUBSCRIPTION_PLANS.values())
+
+
+class SubscribeRequest(BaseModel):
+    customer_email: str
+    plan: str = "monthly"
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
+@router.post("/subscribe")
+async def create_subscription_checkout(body: SubscribeRequest):
+    """
+    Create a Stripe subscription checkout session.
+    Redirects customer to Stripe hosted page to enter card details.
+    No auth required.
+    """
+    plan = SUBSCRIPTION_PLANS.get(body.plan)
+    if not plan:
+        raise HTTPException(status_code=400, detail=f"Invalid plan '{body.plan}'. Choose 'monthly' or 'annual'.")
+
+    km = _keys()
+    stripe_key = (
+        _clean_value(km.get_key("stripe_key") if km else None)
+        or _clean_value(os.environ.get("STRIPE_KEY"))
+        or _clean_value(os.environ.get("STRIPE_SECRET_KEY"))
+    )
+    if not stripe_key:
+        raise HTTPException(status_code=400, detail="Payment processing not configured")
+
+    try:
+        import stripe
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Stripe SDK not installed — run: pip install stripe")
+
+    stripe.api_key = stripe_key
+
+    frontend_url = _clean_value(os.environ.get("FRONTEND_URL")) or "https://frontend-one-ashen-16.vercel.app"
+    success_url = body.success_url or f"{frontend_url}/store?subscribed=1&plan={plan['id']}"
+    cancel_url = body.cancel_url or f"{frontend_url}/store"
+
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": plan["name"],
+                        "description": plan["description"],
+                    },
+                    "unit_amount": plan["price_cents"],
+                    "recurring": {"interval": plan["interval"]},
+                },
+                "quantity": 1,
+            }
+        ],
+        mode="subscription",
+        customer_email=body.customer_email,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "plan": body.plan,
+            "customer_email": body.customer_email,
+            "store": "fiilthy",
+            "type": "subscription",
+        },
+    )
+
+    # Record pending subscription
+    db = _db()
+    if db is not None:
+        try:
+            await db.subscriptions.insert_one({
+                "subscription_id": secrets.token_hex(16),
+                "plan": body.plan,
+                "customer_email": body.customer_email,
+                "status": "pending",
+                "stripe_session_id": session.id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+
+    return {"checkout_url": session.url, "session_id": session.id, "plan": plan["id"]}

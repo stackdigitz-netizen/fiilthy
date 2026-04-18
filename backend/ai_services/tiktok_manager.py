@@ -9,6 +9,7 @@ import json
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 import aiohttp
 import requests
@@ -29,6 +30,7 @@ class TikTokManager:
         self.client_id = os.getenv("TIKTOK_CLIENT_ID")
         self.client_secret = os.getenv("TIKTOK_CLIENT_SECRET")
         self.open_id = os.getenv("TIKTOK_OPEN_ID")
+        self.content_posting_approved = (os.getenv("TIKTOK_CONTENT_POSTING_APPROVED", "").strip().lower() in {"1", "true", "yes", "on"})
         
         # Validate credentials
         if not self.access_token and not self.client_id:
@@ -69,6 +71,13 @@ class TikTokManager:
             }
         """
         try:
+            if not self.access_token or not self.content_posting_approved:
+                return {
+                    "status": "blocked",
+                    "message": "TikTok live posting requires TIKTOK_ACCESS_TOKEN and approved Content Posting API access.",
+                    "platform": "tiktok"
+                }
+
             caption = video_data.get("caption", "")
             hashtags = video_data.get("hashtags", [])
             full_caption = caption + " " + " ".join([f"#{h}" for h in hashtags])
@@ -179,6 +188,13 @@ class TikTokManager:
             schedule_time: ISO format datetime string
         """
         try:
+            if not self.access_token or not self.content_posting_approved:
+                return {
+                    "status": "blocked",
+                    "message": "TikTok scheduling is not live because Content Posting API access is not configured.",
+                    "platform": "tiktok"
+                }
+
             scheduled_id = f"scheduled_{len(self.scheduled_posts) + 1}"
             
             self.scheduled_posts[scheduled_id] = {
@@ -226,25 +242,11 @@ class TikTokManager:
     async def get_video_analytics(self, video_id: str) -> Dict[str, Any]:
         """Get analytics for a specific video"""
         try:
-            if video_id not in self.post_cache:
-                return {"status": "error", "message": f"Video {video_id} not found"}
-            
-            # In production: fetch real analytics from TikTok API
             return {
-                "status": "success",
+                "status": "blocked",
                 "video_id": video_id,
                 "platform": "tiktok",
-                "analytics": {
-                    "views": 45000 + hash(video_id) % 10000,
-                    "likes": 3200 + hash(video_id) % 1000,
-                    "comments": 450 + hash(video_id) % 200,
-                    "shares": 120 + hash(video_id) % 50,
-                    "watch_time_seconds": 180000,
-                    "average_watch_time": 3.5,
-                    "engagement_rate": "7.2%",
-                    "follower_growth": 230
-                },
-                "timestamp": datetime.now().isoformat()
+                "message": "DATA NOT AVAILABLE YET"
             }
         
         except Exception as e:
@@ -256,24 +258,11 @@ class TikTokManager:
     async def get_channel_analytics(self, period_days: int = 30) -> Dict[str, Any]:
         """Get overall channel analytics"""
         try:
-            video_count = len(self.post_cache)
-            
             return {
-                "status": "success",
+                "status": "blocked",
                 "platform": "tiktok",
                 "period_days": period_days,
-                "analytics": {
-                    "total_videos": video_count,
-                    "total_views": 500000 + (video_count * 10000),
-                    "total_likes": 35000 + (video_count * 750),
-                    "total_comments": 5000 + (video_count * 100),
-                    "total_shares": 1200 + (video_count * 30),
-                    "follower_count": 8500,
-                    "new_followers": 450,
-                    "engagement_rate": "8.1%",
-                    "average_video_views": 45000
-                },
-                "timestamp": datetime.now().isoformat()
+                "message": "WAITING FOR REAL PERFORMANCE DATA"
             }
         
         except Exception as e:

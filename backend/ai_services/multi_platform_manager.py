@@ -360,49 +360,37 @@ class PlatformIntegration:
     @staticmethod
     async def post_to_instagram(content: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         """Post to Instagram"""
-        # In production: use Instagram Graph API
         return {
-            "status": "success",
+            "status": "blocked",
             "platform": "instagram",
-            "post_url": f"https://www.instagram.com/p/123456/",
-            "reach": "30,000+",
-            "posted_at": datetime.now().isoformat()
+            "message": "Live Instagram publishing is not available through this legacy route. Use /api/distribution/publish-live with INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID, and a public video URL."
         }
     
     @staticmethod
     async def post_to_twitter(content: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         """Post to Twitter/X"""
-        # In production: use Twitter API v2
         return {
-            "status": "success",
+            "status": "blocked",
             "platform": "twitter",
-            "tweet_url": "https://twitter.com/user/status/123456",
-            "impressions": "100,000+",
-            "posted_at": datetime.now().isoformat()
+            "message": "Live Twitter/X publishing is not implemented in this route."
         }
     
     @staticmethod
     async def post_to_linkedin(content: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         """Post to LinkedIn"""
-        # In production: use LinkedIn Share API
         return {
-            "status": "success",
+            "status": "blocked",
             "platform": "linkedin",
-            "post_url": "https://www.linkedin.com/posts/123456",
-            "reach": "25,000+",
-            "posted_at": datetime.now().isoformat()
+            "message": "Live LinkedIn publishing is not implemented in this route."
         }
     
     @staticmethod
     async def post_to_youtube(content: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         """Post to YouTube"""
-        # In production: use YouTube Data API
         return {
-            "status": "success",
+            "status": "blocked",
             "platform": "youtube",
-            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            "views": "0+",
-            "posted_at": datetime.now().isoformat()
+            "message": "Use /api/youtube/upload or /api/distribution/publish-live for real YouTube uploads. This legacy route does not perform live publishing."
         }
     
     # TikTok-specific operations

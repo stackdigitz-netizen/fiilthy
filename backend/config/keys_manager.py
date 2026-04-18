@@ -27,6 +27,19 @@ class KeysManager:
         'gumroad_key': ['GUMROAD_ACCESS_TOKEN', 'GUMROAD_TOKEN', 'GUMROAD_API_KEY', 'GUMROAD_KEY', 'GUMROAD_CLIENT_ID'],
         'gumroad_secret': ['GUMROAD_SECRET', 'GUMROAD_CLIENT_SECRET'],
         'mongodb_url': ['MONGO_URL', 'MONGO_URI', 'MONGODB_URL'],
+        # Social platform keys — map to Railway env var names
+        'tiktok_api_key': ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_ID', 'TIKTOK_API_KEY'],
+        'tiktok_api_secret': ['TIKTOK_CLIENT_SECRET', 'TIKTOK_API_SECRET'],
+        'instagram_graph_api_key': ['META_ACCESS_TOKEN', 'INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_GRAPH_API_KEY'],
+        'twitter_api_key': ['TWITTER_BEARER_TOKEN', 'TWITTER_API_KEY'],
+        'linkedin_api_key': ['LINKEDIN_CLIENT_ID', 'LINKEDIN_API_KEY'],
+        'youtube_api_key': ['YOUTUBE_API_KEY', 'GOOGLE_API_KEY'],
+        'mailchimp_key': ['MAILCHIMP_API_KEY', 'MAILCHIMP_KEY'],
+        'gemini_key': ['GEMINI_API_KEY', 'GOOGLE_GEMINI_API_KEY'],
+        # Video generation keys
+        'elevenlabs_key': ['ELEVENLABS_API_KEY', 'ELEVENLABS_KEY'],
+        'pexels_key': ['PEXELS_API_KEY', 'PEXELS_KEY'],
+        'pixabay_key': ['PIXABAY_API_KEY', 'PIXABAY_KEY'],
     }
     
     def __init__(self):

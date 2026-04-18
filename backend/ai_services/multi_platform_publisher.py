@@ -223,15 +223,17 @@ class MultiPlatformPublisher:
         logger.info(f"📱 Scheduling TikTok teaser for {product_id}")
         
         return {
-            "status": "scheduled",
+            "status": "manual_action_required",
             "platform": "tiktok",
             "content_type": "teaser_video",
-            "scheduled_times": [
-                (datetime.utcnow() + timedelta(hours=3)).isoformat(),
-                (datetime.utcnow() + timedelta(hours=24)).isoformat()
+            "required_inputs": [
+                "TIKTOK_ACCESS_TOKEN",
+                "TIKTOK_CLIENT_ID",
+                "TIKTOK_CLIENT_SECRET",
+                "TIKTOK_CONTENT_POSTING_APPROVED",
+                "public_video_url"
             ],
-            "expected_reach": 50000,
-            "estimated_ctr": 0.08
+            "message": "TikTok live publishing is blocked until Content Posting API approval and a public video URL are available."
         }
 
     async def _schedule_instagram_teaser(
@@ -245,13 +247,15 @@ class MultiPlatformPublisher:
         logger.info(f"📱 Scheduling Instagram teaser for {product_id}")
         
         return {
-            "status": "scheduled",
+            "status": "manual_action_required",
             "platform": "instagram",
-            "content_type": "carousel_post",
-            "scheduled_times": [
-                (datetime.utcnow() + timedelta(hours=2)).isoformat()
+            "content_type": "reel",
+            "required_inputs": [
+                "INSTAGRAM_ACCESS_TOKEN",
+                "INSTAGRAM_BUSINESS_ACCOUNT_ID",
+                "public_video_url"
             ],
-            "expected_reach": 30000
+            "message": "Instagram live publishing requires a Graph API access token, business account id, and a public video URL."
         }
 
     async def _schedule_facebook_teaser(
@@ -265,13 +269,10 @@ class MultiPlatformPublisher:
         logger.info(f"📱 Scheduling Facebook teaser for {product_id}")
         
         return {
-            "status": "scheduled",
+            "status": "manual_action_required",
             "platform": "facebook",
             "content_type": "video_post",
-            "scheduled_times": [
-                (datetime.utcnow() + timedelta(hours=4)).isoformat()
-            ],
-            "expected_reach": 25000
+            "message": "Facebook publishing is not live-wired in this service."
         }
 
     async def _schedule_twitter_teaser(
@@ -285,14 +286,11 @@ class MultiPlatformPublisher:
         logger.info(f"📱 Scheduling Twitter thread for {product_id}")
         
         return {
-            "status": "scheduled",
+            "status": "manual_action_required",
             "platform": "twitter",
             "content_type": "thread",
             "tweets": 5,
-            "scheduled_times": [
-                (datetime.utcnow() + timedelta(hours=5)).isoformat()
-            ],
-            "expected_impressions": 40000
+            "message": "Twitter/X publishing is not live-wired in this service."
         }
 
     async def _launch_email_campaign(

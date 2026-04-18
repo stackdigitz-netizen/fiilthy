@@ -61,6 +61,7 @@ from ai_services.auth_utils import (
 from ai_services.faceless_video_generator import FacelessVideoGenerator, get_faceless_video_generator
 from ai_services.multi_platform_product_sync import MultiPlatformProductSync, get_product_sync_manager
 from ai_services.youtube_data_api import YouTubeDataAPI, get_youtube_api
+from ai_services.live_distribution_engine import get_live_distribution_engine
 from ai_services.product_ranking_engine import ProductRankingEngine, get_product_ranking_engine
 from ai_services.multi_platform_ad_manager import MultiPlatformAdCampaignManager, get_campaign_manager
 from ai_services.revenue_attribution_engine import RevenueAttributionEngine
@@ -75,6 +76,7 @@ from core.routes_product_launch import router as router_product_launch
 from core.routes_quality import router as router_quality
 from core.routes_agents import router as router_agents
 from core.routes_store import router as router_store, SAMPLE_PRODUCTS
+from core.routes_intelligence import router as router_intelligence
 from core.product_content import generate_product_files
 from ai_services.product_cycle_scheduler import get_cycle_scheduler
 from ai_services.agent_orchestrator import get_orchestrator
@@ -627,12 +629,23 @@ async def get_keys_status():
         'openai_key',
         'anthropic_key',
         'dalle_key',
+        'gemini_key',
         'sendgrid_key',
         'sendgrid_from_email',
+        'mailchimp_key',
         'stripe_key',
         'stripe_webhook_secret',
         'gumroad_key',
         'gumroad_secret',
+        'tiktok_api_key',
+        'tiktok_api_secret',
+        'instagram_graph_api_key',
+        'twitter_api_key',
+        'linkedin_api_key',
+        'youtube_api_key',
+        'elevenlabs_key',
+        'pexels_key',
+        'pixabay_key',
         'mongodb_url'
     ]
     status = {}
@@ -4603,6 +4616,17 @@ class YouTubeUploadRequest(BaseModel):
     category_id: str = Field(default="24", description="YouTube category ID")
     made_for_kids: bool = False
 
+
+class LiveDistributionRequest(BaseModel):
+    video_path: Optional[str] = None
+    title: str
+    description: str = ""
+    hashtags: List[str] = Field(default_factory=list)
+    platforms: List[str] = Field(default_factory=lambda: ["youtube", "instagram", "tiktok"])
+    privacy_status: str = "public"
+    video_public_url: Optional[str] = None
+    product_id: Optional[str] = None
+
 @api_router.get("/youtube/auth/url")
 async def get_youtube_auth_url(redirect_uri: str = "http://localhost:8000/api/youtube/auth/callback"):
     """Get YouTube OAuth authorization URL"""
@@ -4689,6 +4713,39 @@ async def upload_to_youtube(request: YouTubeUploadRequest, background_tasks: Bac
         raise
     except Exception as e:
         logger.error(f"YouTube upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/distribution/live-readiness")
+async def get_live_distribution_readiness():
+    """Return truthful live-readiness for each supported platform."""
+    try:
+        engine = get_live_distribution_engine(db)
+        return {
+            "success": True,
+            "platforms": engine.get_live_readiness(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/distribution/publish-live")
+async def publish_video_live(request: LiveDistributionRequest):
+    """Attempt real platform uploads using only configured live integrations."""
+    try:
+        engine = get_live_distribution_engine(db)
+        result = await engine.publish_video(
+            video_path=request.video_path,
+            title=request.title,
+            description=request.description,
+            hashtags=request.hashtags,
+            platforms=request.platforms,
+            privacy_status=request.privacy_status,
+            video_public_url=request.video_public_url,
+            product_id=request.product_id,
+        )
+        return result
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/youtube/video/{video_id}/status")
@@ -5784,6 +5841,7 @@ app.include_router(router_product_launch)  # NEW: Product launch routes
 app.include_router(router_quality)          # NEW: Quality control routes
 app.include_router(router_agents)           # NEW: Agent empire routes
 app.include_router(router_store)            # NEW: Public storefront + delivery
+app.include_router(router_intelligence)     # Intelligence: competitor, email, shorts
 
 # Configure CORS
 _cors_env = os.environ.get('CORS_ORIGINS', '')
