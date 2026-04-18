@@ -1,10 +1,10 @@
 {
   "success": true,
-  "video_id": "78054224-8f6",
-  "video_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\video_78054224-8f6.mp4",
+  "video_id": "3eed5e49-1e2",
+  "video_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\video_3eed5e49-1e2.mp4",
   "duration": 60,
   "format": "1080x1920",
-  "generated_at": "2026-04-18T01:55:06.528491+00:00",
+  "generated_at": "2026-04-18T01:57:13.227249+00:00",
   "platforms_ready": {
     "youtube_shorts": {
       "ready": true,
@@ -28,5 +28,5 @@
     }
   },
   "file_size_mb": 0.11717605590820312,
-  "thumbnail_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\thumbnail_78054224-8f6.png"
+  "thumbnail_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\thumbnail_3eed5e49-1e2.png"
 }
