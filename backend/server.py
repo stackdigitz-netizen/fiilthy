@@ -621,6 +621,7 @@ async def store_api_keys(keys: APIKeyInput, _auth: dict = Depends(require_auth))
 
 
 # SECURE: Only allow authenticated users to fetch all decrypted keys for Vault page
+
 from fastapi import Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 security = HTTPBearer()
@@ -648,6 +649,30 @@ async def get_all_keys_vault(credentials: HTTPAuthorizationCredentials = Securit
         if value:
             keys[key_name] = value
     return keys
+
+
+# New: Vault key status endpoint
+from fastapi.responses import JSONResponse
+
+@api_router.get("/keys/status")
+async def get_keys_status(credentials: HTTPAuthorizationCredentials = Security(security)):
+    """Return the status of all API keys for the Vault page (authenticated only)"""
+    token = credentials.credentials
+    payload = decode_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Use SecureKeyVault to get all credential statuses
+    try:
+        statuses = await key_vault.list_credentials()
+        # Return as a dict: {type: status, ...}
+        status_map = {item["type"]: item["status"] for item in statuses.get("stored", [])}
+        # Add not_configured types as well
+        for item in statuses.get("available", []):
+            status_map[item["type"]] = item["status"]
+        return JSONResponse(content=status_map)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get key statuses: {str(e)}")
 
 
 # ==================== AI Service Integrations ====================
