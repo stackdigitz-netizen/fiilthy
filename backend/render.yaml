@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: fiilthy-backend
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port 10000"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: 1
+    autoDeploy: true
+    rootDir: .
+    buildFilter:
+      paths:
+        - "server.py"
+        - "requirements.txt"
+        - "ai_services/"
+        - "config/"
+        - "core/"
+        - "data/"
+        - "logs/"
+        - "scripts/"
+        - "tests/"
