@@ -95,3 +95,11 @@ frontend/node_modules/.cache/default-development/1.pack
 *.env
 *.env.*
 .env*.local
+=======
+.vercel
+.env
+.env*.local
+*.env
+__pycache__/
+*.py[cod]
+>>>>>>> 7f35a281ff1ba2f9adf31766c11403035522c1e9

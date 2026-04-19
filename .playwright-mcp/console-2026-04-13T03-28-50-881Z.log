@@ -1,0 +1,20 @@
+[    2242ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284, userInfo:{"user_unique_id":"7625851654352716801","web_id":"7627942162927470098"} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0
+[    2242ms] [LOG] %c %s color: yellow; background-color: black; [instance: default] appid: 1284, sdk is ready, version is 5.3.12_oversea, you can report now !!! @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/log-sdk/collect/5.2/oversea/collect.js:0
+[    5482ms] [WARNING] RTC_AMBULANCE have non-native code:
+ RTCPeerConnection.prototype.addStream
+RTCPeerConnection.prototype.addTrack
+RTCPeerConnection.prototype.createDataChannel
+RTCPeerConnection.prototype.getLocalStreams
+RTCPeerConnection.prototype.getStats
+RTCPeerConnection.prototype.removeStream
+RTCPeerConnection.prototype.removeTrack
+RTCPeerConnection.prototype.setRemoteDescription
+RTCPeerConnection.prototype.addEventListener
+RTCPeerConnection.prototype.removeEventListener
+navigator.mediaDevices.getUserMedia
+console.error
+navigator.mediaDevices.getDisplayMedia @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:12
+[    5557ms] [LOG] 20:28:56:438 %cAgora-SDK [DEBUG]: color: #64B5F6; browser ua:  Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    5557ms] [LOG] 20:28:56:438 %cAgora-SDK [INFO]: color: #1E88E5; font-weight: bold; browser info:  {name: Chrome, version: 147, os: Windows 10, osVersion: 10, browserVersion: 147.0.0.0} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    5558ms] [LOG] 20:28:56:438 %cAgora-SDK [INFO]: color: #1E88E5; font-weight: bold; browser compatibility:  {getDisplayMedia: true, getStreamFromExtension: true, supportUnifiedPlan: true, supportMinBitrate: true, supportSetRtpSenderParameters: true} @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310
+[    5725ms] [LOG] 20:28:56:606 %cAgora-SDK [DEBUG]: color: #64B5F6; current web page is hidden @ https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/tiktok/web/tt4d_coze_ai_bot/coze-chat-app-sdk/1.2.0-beta.19-tt4d-t6/libs/oversea/index.js:310

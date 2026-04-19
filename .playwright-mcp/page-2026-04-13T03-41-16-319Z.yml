@@ -1,0 +1,125 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]: F
+          - generic [ref=e8]: FiiLTHY.ai
+        - button [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+      - navigation [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - img [ref=e15]
+          - generic [ref=e17]: Dashboard
+        - link "Opportunities" [ref=e18] [cursor=pointer]:
+          - /url: /opportunities
+          - img [ref=e19]
+          - generic [ref=e22]: Opportunities
+        - link "Products" [ref=e23] [cursor=pointer]:
+          - /url: /products
+          - img [ref=e24]
+          - generic [ref=e28]: Products
+        - link "Branding" [ref=e29] [cursor=pointer]:
+          - /url: /branding
+          - img [ref=e30]
+          - generic [ref=e36]: Branding
+        - link "Content" [ref=e37] [cursor=pointer]:
+          - /url: /content
+          - img [ref=e38]
+          - generic [ref=e41]: Content
+        - link "Sales" [ref=e42] [cursor=pointer]:
+          - /url: /sales
+          - img [ref=e43]
+          - generic [ref=e45]: Sales
+        - link "Social Media" [ref=e46] [cursor=pointer]:
+          - /url: /social-media
+          - img [ref=e47]
+          - generic [ref=e53]: Social Media
+        - link "Analytics" [ref=e54] [cursor=pointer]:
+          - /url: /analytics
+          - img [ref=e55]
+          - generic [ref=e58]: Analytics
+        - link "Automation" [ref=e59] [cursor=pointer]:
+          - /url: /automation
+          - img [ref=e60]
+          - generic [ref=e63]: Automation
+        - link "Growth Lab" [ref=e64] [cursor=pointer]:
+          - /url: /growth
+          - img [ref=e65]
+          - generic [ref=e67]: Growth Lab
+        - link "Hunter" [ref=e68] [cursor=pointer]:
+          - /url: /hunter
+          - img [ref=e69]
+          - generic [ref=e76]: Hunter
+        - link "Projects" [ref=e77] [cursor=pointer]:
+          - /url: /projects
+          - img [ref=e78]
+          - generic [ref=e80]: Projects
+        - link "Atlas AI" [ref=e81] [cursor=pointer]:
+          - /url: /assistant
+          - img [ref=e82]
+          - generic [ref=e85]: Atlas AI
+        - link "Vault" [ref=e86] [cursor=pointer]:
+          - /url: /vault
+          - img [ref=e87]
+          - generic [ref=e89]: Vault
+        - link "Settings" [ref=e90] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e91]
+          - generic [ref=e94]: Settings
+      - paragraph [ref=e96]: FiiLTHY.ai Digital Empire
+    - main [ref=e97]:
+      - generic [ref=e98]:
+        - button [ref=e100] [cursor=pointer]:
+          - img [ref=e101]
+        - generic [ref=e104]:
+          - generic [ref=e105]: admin@fiilthy.ai
+          - generic [ref=e106]: LIVE
+          - button "Logout" [ref=e108] [cursor=pointer]
+      - generic [ref=e110]:
+        - generic [ref=e111]:
+          - heading "Opportunity Hunter" [level=1] [ref=e112]:
+            - img [ref=e113]
+            - text: Opportunity Hunter
+          - paragraph [ref=e120]: AI scouts trending niches and deploys specialized agent teams to execute them
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - heading "Opportunities" [level=3] [ref=e123]
+            - paragraph [ref=e124]: "0"
+            - paragraph [ref=e125]: discovered
+          - generic [ref=e126]:
+            - heading "Agent Teams" [level=3] [ref=e127]
+            - paragraph [ref=e128]: "0"
+            - paragraph [ref=e129]: 0 active
+          - generic [ref=e130]:
+            - heading "Tasks Done" [level=3] [ref=e131]
+            - paragraph [ref=e132]: "0"
+            - paragraph [ref=e133]: completed
+          - generic [ref=e134]:
+            - heading "Revenue" [level=3] [ref=e135]
+            - paragraph [ref=e136]: $ 0.00
+            - paragraph [ref=e137]: from teams
+        - generic [ref=e138]:
+          - button "Hunt New Opportunities" [ref=e139] [cursor=pointer]:
+            - img [ref=e140]
+            - text: Hunt New Opportunities
+          - button "Refresh" [ref=e147] [cursor=pointer]:
+            - img [ref=e148]
+            - text: Refresh
+          - generic [ref=e153]:
+            - button "0 Opportunities" [ref=e154] [cursor=pointer]:
+              - img [ref=e155]
+              - text: 0 Opportunities
+            - button "0 Teams" [ref=e159] [cursor=pointer]:
+              - img [ref=e160]
+              - text: 0 Teams
+        - generic [ref=e165]:
+          - heading "🎯 Discovered Opportunities ( 0 )" [level=2] [ref=e166]
+          - generic [ref=e167]:
+            - img [ref=e168]
+            - paragraph [ref=e175]: No opportunities yet. Click "Hunt New Opportunities" to start.
+  - link "Made with Emergent" [ref=e177] [cursor=pointer]:
+    - /url: https://app.emergent.sh/?utm_source=emergent-badge
+    - img [ref=e178]
+    - paragraph [ref=e181]: Made with Emergent

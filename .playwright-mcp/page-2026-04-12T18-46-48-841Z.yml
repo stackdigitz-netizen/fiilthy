@@ -1,0 +1,458 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e8]:
+      - link "TikTok for Developers" [ref=e1842] [cursor=pointer]:
+        - /url: /
+        - img "TikTok for Developers" [ref=e1843]
+      - generic [ref=e12]:
+        - button [ref=e13] [cursor=pointer]:
+          - img [ref=e15]
+        - button [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+    - main [ref=e20]:
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - link [ref=e102] [cursor=pointer]:
+                - /url: /apps
+                - img [ref=e103]
+              - generic [ref=e105]: stackdigitz
+              - button [ref=e106] [cursor=pointer]:
+                - img [ref=e107]
+              - group [ref=e109]:
+                - radio "Production" [ref=e1844] [cursor=pointer]
+                - radio "Sandbox" [checked] [ref=e1845] [cursor=pointer]
+            - generic [ref=e112]:
+              - button "URL properties" [ref=e1846] [cursor=pointer]:
+                - generic [ref=e115]: URL properties
+              - button [ref=e116] [cursor=pointer]:
+                - img [ref=e118]
+              - button [ref=e121] [cursor=pointer]:
+                - img [ref=e123]
+          - generic [ref=e1095]:
+            - generic [ref=e1097]:
+              - generic [ref=e1099]:
+                - generic [ref=e1100]:
+                  - generic [ref=e1101]: Sandbox
+                  - img [ref=e1103] [cursor=pointer]
+                - button "fiilthy-dev" [ref=e1847] [cursor=pointer]:
+                  - generic [ref=e1107]:
+                    - img [ref=e1108]
+                    - generic [ref=e1109]: fiilthy-dev
+                  - img [ref=e1110]
+              - separator [ref=e1112]
+              - generic [ref=e1113]:
+                - generic [ref=e1114]:
+                  - link "App details" [ref=e1848] [cursor=pointer]:
+                    - /url: "#app-details"
+                  - img [ref=e1117]
+                - navigation:
+                  - link "Credentials":
+                    - /url: "#credentials"
+                    - paragraph: Credentials
+                  - link "Basic information":
+                    - /url: "#basic-info"
+                    - paragraph: Basic information
+                - generic [ref=e1119]:
+                  - link "Products" [ref=e1849] [cursor=pointer]:
+                    - /url: "#products"
+                  - img [ref=e1122]
+                - navigation:
+                  - link "Login Kit":
+                    - /url: "#login"
+                    - paragraph: Login Kit
+                  - link "Content Posting API":
+                    - /url: "#content_posting_api"
+                    - paragraph: Content Posting API
+                - link "Scopes" [ref=e1850] [cursor=pointer]:
+                  - /url: "#scopes"
+                - navigation
+                - generic [ref=e1126]:
+                  - link "Sandbox settings" [ref=e1851] [cursor=pointer]:
+                    - /url: "#sandbox-settings"
+                  - img [ref=e1129]
+                - navigation:
+                  - link "Target users":
+                    - /url: "#target-users"
+                    - paragraph: Target users
+            - generic [ref=e1921]:
+              - generic [ref=e1922]:
+                - button "Delete Sandbox" [ref=e1924] [cursor=pointer]:
+                  - img [ref=e1925]
+                  - generic [ref=e1928]: Delete Sandbox
+                - button "Apply changes" [ref=e1930] [cursor=pointer]:
+                  - generic [ref=e1932]: Apply changes
+              - generic [ref=e1933]:
+                - generic [ref=e1935]: You are editing fiilthy-dev, a Sandbox version of stackdigitz
+                - generic [ref=e1936]:
+                  - generic [ref=e1938]: App details
+                  - group [ref=e1939]:
+                    - generic [ref=e1940]:
+                      - generic [ref=e1941]: Credentials
+                      - generic [ref=e1942]:
+                        - generic [ref=e1943]:
+                          - generic [ref=e1945]: Client key
+                          - generic [ref=e1947]: sbawhikz7q06i3rh24
+                          - img [ref=e2232] [cursor=pointer]
+                        - generic [ref=e1952]:
+                          - generic [ref=e1954]: Client secret
+                          - generic [ref=e1956]: •••••••••••••••••
+                          - img [ref=e1959] [cursor=pointer]
+                  - group [ref=e1961]:
+                    - generic [ref=e1962]:
+                      - generic [ref=e1963]: Basic information
+                      - generic [ref=e1964]:
+                        - generic [ref=e1965]:
+                          - generic [ref=e1968]: App icon *
+                          - generic [ref=e1970]: This will be displayed publicly to TikTok users.
+                          - generic [ref=e1971]:
+                            - img [ref=e1976] [cursor=pointer]
+                            - generic [ref=e1977]:
+                              - text: "Requirements:"
+                              - text: 1024px x 1024px
+                              - text: Up to 5MB
+                              - text: JPEG, JPG, or PNG formats
+                        - generic [ref=e1980]:
+                          - generic [ref=e1983]: App name *
+                          - generic [ref=e1985]: This will be displayed to TikTok users
+                          - textbox "App name" [ref=e1987]: stackdigitz
+                          - generic [ref=e1988]: 11 / 50
+                        - generic [ref=e1991]:
+                          - generic [ref=e1994]: Category *
+                          - button "Category Social Networking" [ref=e1996] [cursor=pointer]:
+                            - generic [ref=e1997]: Social Networking
+                            - img [ref=e1998]
+                        - generic [ref=e2001]:
+                          - generic [ref=e2004]: Description *
+                          - generic [ref=e2006]:
+                            - text: Describe what your website or mobile app does and how it works. This will be displayed to TikTok users.
+                            - generic [ref=e2007]:
+                              - text: "Examples:"
+                              - list [ref=e2008]:
+                                - listitem [ref=e2009]: A website that sells pet supplies.
+                                - listitem [ref=e2010]: Manage all your social media content in one place.
+                          - generic [ref=e2011]:
+                            - textbox "Description" [ref=e2012]: AI-powered social media management tool for TikTok creators. Schedule, post, and analyze content.
+                            - generic [ref=e2013]: 97 / 120
+                      - generic [ref=e2015]:
+                        - generic [ref=e2018]: Terms of Service URL *
+                        - generic [ref=e2020]: Link to your app or website's official Terms of Service
+                        - textbox "Terms of Service URL" [ref=e2022]: https://fiilthy.com/terms
+                      - generic [ref=e2024]:
+                        - generic [ref=e2027]: Privacy Policy URL *
+                        - generic [ref=e2029]: Link to your app or website's official privacy policy
+                        - textbox "Privacy Policy URL" [ref=e2031]: https://fiilthy.com/privacy
+                      - generic [ref=e2032]:
+                        - generic [ref=e2033]: Platforms *
+                        - generic [ref=e2035]:
+                          - generic [ref=e2036]:
+                            - generic [ref=e2037]:
+                              - checkbox "Web" [checked] [ref=e2038] [cursor=pointer]
+                              - generic:
+                                - img
+                            - generic [ref=e2040] [cursor=pointer]: Web
+                          - generic [ref=e2041]:
+                            - checkbox "Desktop" [ref=e2043] [cursor=pointer]
+                            - generic [ref=e2045] [cursor=pointer]: Desktop
+                          - generic [ref=e2046]:
+                            - checkbox "Android" [ref=e2048] [cursor=pointer]
+                            - generic [ref=e2050] [cursor=pointer]: Android
+                          - generic [ref=e2051]:
+                            - checkbox "iOS" [ref=e2053] [cursor=pointer]
+                            - generic [ref=e2055] [cursor=pointer]: iOS
+                      - generic [ref=e2056]:
+                        - generic [ref=e2057]: Configure for Web/Desktop
+                        - generic [ref=e2059]:
+                          - generic [ref=e2062]: Web/Desktop URL *
+                          - generic [ref=e2064]: Link to the official website for your app or service
+                          - textbox "Web/Desktop URL" [ref=e2066]: https://grumpy-badgers-send.loca.lt
+                - generic [ref=e2067]:
+                  - generic [ref=e2068]:
+                    - generic [ref=e2069]: Products
+                    - button "Add products" [ref=e2070] [cursor=pointer]:
+                      - generic [ref=e2071]:
+                        - img [ref=e2073]
+                        - generic [ref=e2075]: Add products
+                  - group [ref=e2076]:
+                    - generic [ref=e2077]:
+                      - generic [ref=e2079]:
+                        - img [ref=e2080]
+                        - generic [ref=e2081]: Login Kit
+                        - button [ref=e2082] [cursor=pointer]:
+                          - img [ref=e2083]
+                      - generic [ref=e2086]:
+                        - generic [ref=e2087]:
+                          - generic [ref=e2088]:
+                            - generic [ref=e2089]: Redirect URI
+                            - generic [ref=e2090]: "*"
+                            - img [ref=e2092]
+                          - paragraph [ref=e2093]: Add up to 10 Redirect URIs. Users will be redirected to this path after they have authorized your app with TikTok.
+                        - generic [ref=e2094]:
+                          - generic [ref=e2097]:
+                            - button "Web*" [ref=e2099] [cursor=pointer]:
+                              - generic [ref=e2100]: Web*
+                            - button "Desktop" [ref=e2102] [cursor=pointer]:
+                              - generic [ref=e2103]: Desktop
+                            - button "Android" [ref=e2105] [cursor=pointer]:
+                              - generic [ref=e2106]: Android
+                            - button "iOS" [ref=e2108] [cursor=pointer]:
+                              - generic [ref=e2109]: iOS
+                          - generic [ref=e2112]:
+                            - textbox [ref=e2117]: https://grumpy-badgers-send.loca.lt/callback
+                            - button "Add a URI" [ref=e2119] [cursor=pointer]:
+                              - generic [ref=e2120]:
+                                - img [ref=e2121]
+                                - generic [ref=e2123]: Add a URI
+                  - group [ref=e2124]:
+                    - generic [ref=e2125]:
+                      - generic [ref=e2126]:
+                        - generic [ref=e2127]:
+                          - img [ref=e2128]
+                          - generic [ref=e2129]: Content Posting API
+                          - button [ref=e2130] [cursor=pointer]:
+                            - img [ref=e2131]
+                        - generic [ref=e2134]: By default, Upload to TikTok is enabled, allowing you to upload content to TikTok as a draft for creators to further edit and post.
+                      - generic [ref=e2136]:
+                        - generic [ref=e2137]:
+                          - generic [ref=e2138]: Direct Post
+                          - switch [checked] [ref=e2141] [cursor=pointer]
+                        - generic [ref=e2143]: Directly post content to authorized users' profiles.
+                      - generic [ref=e2145]:
+                        - generic [ref=e2146]:
+                          - generic [ref=e2147]: Verify domains
+                          - generic [ref=e2148]:
+                            - text: The video/content can be posted in two ways, push_by_file and pull_by_url. To enable pull_by_url, you have to verify your domains. Check out the
+                            - link "Media Transfer Guide" [ref=e2150] [cursor=pointer]:
+                              - /url: /doc/content-posting-api-media-transfer-guide/
+                            - text: to learn more.
+                        - button "Verify" [ref=e2151] [cursor=pointer]:
+                          - generic [ref=e2153]: Verify
+                  - button "Add products" [ref=e2154] [cursor=pointer]:
+                    - generic [ref=e2155]:
+                      - img [ref=e2157]
+                      - generic [ref=e2159]: Add products
+                - generic [ref=e2160]:
+                  - generic [ref=e2162]: Scopes
+                  - group [ref=e2163]:
+                    - generic [ref=e2164]:
+                      - generic [ref=e2165]:
+                        - generic [ref=e2167]:
+                          - textbox "Search" [ref=e2168]
+                          - generic:
+                            - img
+                        - button "Add scopes" [ref=e2169] [cursor=pointer]:
+                          - generic [ref=e2170]:
+                            - img [ref=e2171]
+                            - generic [ref=e2173]: Add scopes
+                      - generic [ref=e2174]:
+                        - generic [ref=e2175]:
+                          - generic [ref=e2176]:
+                            - generic [ref=e2177]:
+                              - img "user.info.basic" [ref=e2178]
+                              - generic [ref=e2179]: user.info.basic
+                            - generic [ref=e2180]: Read a user's profile info (open id, avatar, display name ...)
+                          - generic [ref=e2181]: Included in Login Kit
+                        - generic [ref=e2182]:
+                          - generic [ref=e2183]:
+                            - generic [ref=e2184]:
+                              - img "video.publish" [ref=e2185]
+                              - generic [ref=e2186]: video.publish
+                            - generic [ref=e2187]: Directly post content to a user's TikTok profile.
+                          - generic [ref=e2188]: Included in Content Posting API
+                        - generic [ref=e2189]:
+                          - generic [ref=e2190]:
+                            - generic [ref=e2191]:
+                              - img "video.upload" [ref=e2192]
+                              - generic [ref=e2193]: video.upload
+                            - generic [ref=e2194]: Share content to creator's account as a draft to further edit and post in TikTok.
+                          - generic [ref=e2195]: Included in Content Posting API
+                - generic [ref=e2196]:
+                  - generic [ref=e2198]: Sandbox settings
+                  - group [ref=e2199]:
+                    - generic [ref=e2200]:
+                      - generic [ref=e2201]: Target Users
+                      - button "Add account" [ref=e2204] [cursor=pointer]:
+                        - generic [ref=e2205]:
+                          - img [ref=e2206]
+                          - generic [ref=e2208]: Add account
+                      - table [ref=e2209]:
+                        - rowgroup [ref=e2210]:
+                          - row "TikTok username Time added" [ref=e2211]:
+                            - columnheader "TikTok username" [ref=e2212]
+                            - columnheader "Time added" [ref=e2213]
+                            - columnheader [ref=e2214]
+                        - rowgroup [ref=e2215]:
+                          - row "fiilthy4 Apr 11, 2026 6:57 PM Remove" [ref=e2216]:
+                            - cell "fiilthy4" [ref=e2217]
+                            - cell "Apr 11, 2026 6:57 PM" [ref=e2218]
+                            - cell "Remove" [ref=e2219]:
+                              - button "Remove" [ref=e2220] [cursor=pointer]:
+                                - img [ref=e2221]
+                                - generic [ref=e2224]: Remove
+                      - generic [ref=e2225]: Total 1 item
+        - generic [ref=e353]:
+          - generic:
+            - generic:
+              - generic [ref=e354]: History
+              - img
+            - generic:
+              - button "Changelog" [ref=e1886] [cursor=pointer]:
+                - generic [ref=e358]: Changelog
+              - button "Review comments" [ref=e1887] [cursor=pointer]:
+                - generic [ref=e361]: Review comments
+            - button "All" [ref=e1888] [cursor=pointer]:
+              - generic [ref=e365]: All
+              - img [ref=e366]
+            - generic:
+              - generic:
+                - generic:
+                  - img "red-circle"
+                  - generic [ref=e368]: Apr 6, 2026 8:22 PM
+                - generic [ref=e369]:
+                  - generic: Created App
+                  - generic: "Added App name : stackdigitz"
+                  - generic: By Developer
+    - contentinfo [ref=e28]:
+      - generic [ref=e29]:
+        - img "TikTok for Developers" [ref=e1889]
+        - navigation [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e35]: Products
+            - generic [ref=e37]:
+              - list [ref=e38]:
+                - listitem [ref=e39]:
+                  - link "Share Kit" [ref=e1890] [cursor=pointer]:
+                    - /url: /products/share-kit/
+                - listitem [ref=e41]:
+                  - link "Login Kit" [ref=e1891] [cursor=pointer]:
+                    - /url: /products/login-kit/
+                - listitem [ref=e43]:
+                  - link "Content Posting API" [ref=e1892] [cursor=pointer]:
+                    - /url: /products/content-posting-api/
+                - listitem [ref=e45]:
+                  - link "Research API" [ref=e1893] [cursor=pointer]:
+                    - /url: /products/research-api/
+                - listitem [ref=e47]:
+                  - link "Display API" [ref=e1894] [cursor=pointer]:
+                    - /url: /doc/display-api-get-started/
+              - list [ref=e49]:
+                - listitem [ref=e50]:
+                  - link "Embed Videos" [ref=e1895] [cursor=pointer]:
+                    - /url: /doc/embed-videos/
+                - listitem [ref=e52]:
+                  - link "Data Portability API" [ref=e1896] [cursor=pointer]:
+                    - /url: /products/data-portability-api/
+                - listitem [ref=e54]:
+                  - link "Green Screen Kit" [ref=e1897] [cursor=pointer]:
+                    - /url: /products/share-kit#green-screen
+                - listitem [ref=e56]:
+                  - link "Commercial Content API" [ref=e1898] [cursor=pointer]:
+                    - /url: /products/commercial-content-api
+          - generic [ref=e58]:
+            - generic [ref=e60]: Other platforms
+            - list [ref=e62]:
+              - listitem [ref=e63]:
+                - link "TikTok Embeds" [ref=e1899] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/embed
+              - listitem [ref=e65]:
+                - link "TikTok for Business" [ref=e1900] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/business
+              - listitem [ref=e67]:
+                - link "Advertise on TikTok" [ref=e1901] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/business/&attr_source=tt_official_site&attr_medium=tt_official_site_guidance
+              - listitem [ref=e69]:
+                - link "TikTok Creative Center" [ref=e1902] [cursor=pointer]:
+                  - /url: https://ads.tiktok.com/business/creativecenter/
+              - listitem [ref=e71]:
+                - link "TikTok.com" [ref=e1903] [cursor=pointer]:
+                  - /url: https://www.tiktok.com
+          - generic [ref=e73]:
+            - generic [ref=e75]: Company
+            - list [ref=e77]:
+              - listitem [ref=e78]:
+                - link "About TikTok" [ref=e1904] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/about
+              - listitem [ref=e80]:
+                - link "Newsroom" [ref=e1905] [cursor=pointer]:
+                  - /url: https://newsroom.tiktok.com
+              - listitem [ref=e82]:
+                - link "Contact" [ref=e1906] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/about/contact
+              - listitem [ref=e84]:
+                - link "Careers" [ref=e1907] [cursor=pointer]:
+                  - /url: https://careers.tiktok.com
+              - listitem [ref=e86]:
+                - link "ByteDance" [ref=e1908] [cursor=pointer]:
+                  - /url: https://www.bytedance.com
+              - listitem [ref=e88]:
+                - link "Transparency Center" [ref=e1909] [cursor=pointer]:
+                  - /url: https://www.tiktok.com/transparency
+      - generic [ref=e90]:
+        - generic [ref=e91]: © 2026 TikTok
+        - link "Terms of Service" [ref=e1910] [cursor=pointer]:
+          - /url: https://www.tiktok.com/legal/page/global/tik-tok-developer-terms-of-service/en
+        - link "Privacy Policy" [ref=e1911] [cursor=pointer]:
+          - /url: https://www.tiktok.com/legal/page/global/partner-privacy-policy/en
+        - link "Resources & Legal" [ref=e1912] [cursor=pointer]:
+          - /url: "#site-footer"
+  - generic:
+    - generic:
+      - button "Open chat support" [ref=e1913]:
+        - generic [ref=e96]:
+          - img "AI Assistant"
+      - dialog:
+        - banner:
+          - generic:
+            - img
+            - heading [level=4]: AI Assistant
+          - button:
+            - generic:
+              - img
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - paragraph: Hello,
+                  - paragraph: I'm TikTok Developer Platform AI Assistant. 🎉
+                - paragraph: TikTok for Developers AI bot is an experimental AI chatbot. Mistakes are possible, responses are not professional advice. Avoid sharing confidential or personal information. Your data may be shared with third-party providers to generate responses.
+                - paragraph:
+                  - text: By interacting with this AI bot, you agree to
+                  - link:
+                    - /url: https://www.tiktok.com/legal/tik-tok-developer-terms-of-service
+                    - text: TikTok Developer's Terms of Service
+                  - text: and acknowledge you have read our
+                  - link:
+                    - /url: https://www.tiktok.com/legal/partner-privacy-policy
+                    - text: Privacy Policy
+              - generic:
+                - generic:
+                  - generic: "Select a question category to start chat:"
+                - generic:
+                  - button:
+                    - generic:
+                      - img
+                    - generic: Mini Game
+                  - button:
+                    - generic:
+                      - img
+                    - generic: Short Drama
+                  - button:
+                    - generic:
+                      - img
+                    - generic: Others
+          - generic:
+            - img
+            - button: Contact Support
+          - generic:
+            - generic:
+              - generic:
+                - textbox:
+                  - /placeholder: Message...
+              - generic:
+                - button [disabled]:
+                  - img
+            - paragraph: Responses are by AI. Mistakes are possible
+  - generic:
+    - list

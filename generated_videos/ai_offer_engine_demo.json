@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "video_id": "8fcd2567-59b",
+  "video_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\video_8fcd2567-59b.mp4",
+  "duration": 60,
+  "format": "1080x1920",
+  "generated_at": "2026-04-18T02:01:13.841360+00:00",
+  "platforms_ready": {
+    "youtube_shorts": {
+      "ready": true,
+      "format": "1080x1920",
+      "max_duration": 60
+    },
+    "tiktok": {
+      "ready": true,
+      "format": "1080x1920",
+      "max_duration": 10
+    },
+    "instagram_reels": {
+      "ready": true,
+      "format": "1080x1920",
+      "max_duration": 90
+    },
+    "instagram_stories": {
+      "ready": true,
+      "format": "1080x1920",
+      "max_duration": 15
+    }
+  },
+  "file_size_mb": 0.11717605590820312,
+  "thumbnail_path": "C:\\Users\\user\\fiilthy\\ceo\\backend\\data\\generated_videos\\thumbnail_8fcd2567-59b.png"
+}

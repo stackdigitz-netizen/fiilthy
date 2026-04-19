@@ -1,10 +1,37 @@
 {
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    }
+  ],
   "routes": [
     {
       "src": "/static/(.*)",
       "dest": "/static/$1"
+    },
+    {
+      "src": "/robots.txt",
+      "dest": "/robots.txt"
+    },
+    {
+      "src": "/sitemap.xml",
+      "dest": "/sitemap.xml"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "api/index.py"
     },
     {
       "src": "/(.*)",
@@ -13,9 +40,12 @@
   ],
   "env": {
     "REACT_APP_BACKEND_URL": "https://ceo-backend-production.up.railway.app",
-    "CI": "false"
+    "CI": "false",
+    "PYTHONUNBUFFERED": "1"
   },
   "git": {
     "silent": true
+  }
+}
   }
 }
