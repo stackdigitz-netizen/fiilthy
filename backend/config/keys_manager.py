@@ -166,6 +166,36 @@ class KeysManager:
                 return env_value
         
         return None
+
+    def get_env_key(self, key_name: str) -> Optional[str]:
+        """Read the live environment for a key without relying on cached values."""
+        env_names = [key_name.upper(), *self.ENV_KEY_ALIASES.get(key_name, [])]
+        seen_names = []
+
+        for env_name in env_names:
+            if env_name in seen_names:
+                continue
+            seen_names.append(env_name)
+
+            env_value = self._normalize_value(os.environ.get(env_name))
+            if env_value:
+                return env_value
+
+        return None
+
+    def sync_from_environment(self) -> Dict[str, str]:
+        """Persist canonical key names from provider-specific environment variables."""
+        keys_to_store: Dict[str, str] = {}
+
+        for key_name in self.ENV_KEY_ALIASES:
+            env_value = self.get_env_key(key_name)
+            if env_value:
+                keys_to_store[key_name] = env_value
+
+        if not keys_to_store:
+            return {}
+
+        return self.store_keys(keys_to_store)
     
     def set_key(self, key_name: str, key_value: str):
         """Set a key in cache"""

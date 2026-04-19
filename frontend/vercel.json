@@ -11,6 +11,18 @@
       "handle": "filesystem"
     },
     {
+      "src": "/robots.txt",
+      "dest": "/robots.txt"
+    },
+    {
+      "src": "/sitemap.xml",
+      "dest": "/sitemap.xml"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }

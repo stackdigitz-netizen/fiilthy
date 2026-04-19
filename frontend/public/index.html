@@ -10,10 +10,16 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <title>FiiLTHY.ai | Digital Empire</title>
+        <!-- Security headers for best practices -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://us.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none';">
+        <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+        <meta http-equiv="X-Frame-Options" content="DENY">
     </head>
     <body>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
-        <div id="root"></div>
+                <noscript>You need to enable JavaScript to run this app.</noscript>
+                <main id="main-content" tabindex="-1" aria-label="Main content">
+                    <div id="root"></div>
+                </main>
         <a
             id="emergent-badge"
             target="_blank"

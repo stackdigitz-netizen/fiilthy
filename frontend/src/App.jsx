@@ -20,6 +20,20 @@ import GrowthPage from './pages/GrowthPage';
 import SuccessPage from './pages/SuccessPage';
 import './App.css';
 
+const AUTHENTICATED_PATHS = [
+  '/products',
+  '/projects',
+  '/launch',
+  '/social-media',
+  '/growth',
+  '/approvals',
+  '/analytics',
+  '/vault',
+  '/settings'
+];
+
+const buildLoginRedirect = (path) => `/login?next=${encodeURIComponent(path)}`;
+
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   
@@ -35,6 +49,9 @@ function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/success" element={<SuccessPage />} />
+        {AUTHENTICATED_PATHS.map((path) => (
+          <Route key={path} path={path} element={<Navigate to={buildLoginRedirect(path)} replace />} />
+        ))}
         <Route path="/:page" element={<LegalPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ShoppingCart, Download, Star, Check, Zap, Lock, Mail, X,
-  ArrowLeft, Package,
+  ArrowLeft, Package, Crown, Repeat,
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import API_URL from '../config/api';
@@ -11,6 +11,68 @@ const API = API_URL;
 
 const CACHE_KEY = 'store_products_v4';
 const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+const MEMBERSHIP_FALLBACK_PLANS = [
+  {
+    id: 'monthly',
+    name: 'FiiLTHY Monthly Membership',
+    description: 'Full access to every product, blueprint and template. New drops every month.',
+    price_cents: 2900,
+    interval: 'month',
+    label: '$29/month',
+    perks: [
+      'Instant access to ALL products',
+      'New product drops every month',
+      'Priority support',
+      'Members-only templates & bonuses',
+      'Cancel any time',
+    ],
+  },
+  {
+    id: 'annual',
+    name: 'FiiLTHY Annual Membership',
+    description: 'Everything in Monthly, billed annually. Save $99 vs monthly.',
+    price_cents: 24900,
+    interval: 'year',
+    label: '$249/year',
+    perks: [
+      'Everything in Monthly',
+      'Saves $99 vs monthly billing',
+      'Bonus: Private strategy vault',
+      'Annual member badge',
+      'Cancel any time',
+    ],
+  },
+];
+
+function normalizePlans(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.value)) {
+    return payload.value;
+  }
+
+  return [];
+}
+
+function sortPlans(plans) {
+  const rank = { monthly: 0, annual: 1 };
+  return [...plans].sort((left, right) => {
+    const leftRank = rank[left.id] ?? 99;
+    const rightRank = rank[right.id] ?? 99;
+    return leftRank - rightRank;
+  });
+}
+
+function formatPlanPrice(plan) {
+  const amount = Number(plan.price_cents || 0) / 100;
+  const suffix = plan.interval === 'year' ? '/yr' : '/mo';
+  return {
+    amount: `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`,
+    suffix,
+  };
+}
 
 function normalizeProductText(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -61,6 +123,10 @@ export default function StorePage() {
   });
   const [emailError, setEmailError] = useState('');
   const [checkoutLoading, setCheckoutLoading] = useState(null); // holds product id
+  const [subscribeLoading, setSubscribeLoading] = useState(null); // holds plan id
+  const [membershipPlans, setMembershipPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState('');
   const emailInputRef = useRef(null);
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -114,9 +180,39 @@ export default function StorePage() {
     }
   }, []);
 
+  const loadPlans = useCallback(async () => {
+    setPlansLoading(true);
+    setPlansError('');
+
+    try {
+      const response = await fetch(`${API}/api/store/plans`);
+      if (!response.ok) {
+        throw new Error('Failed to load membership plans');
+      }
+
+      const data = await response.json();
+      const normalizedPlans = normalizePlans(data);
+
+      if (normalizedPlans.length > 0) {
+        setMembershipPlans(sortPlans(normalizedPlans));
+      } else {
+        setPlansError('Using fallback membership plans while the backend returns no plans.');
+      }
+    } catch (err) {
+      setPlansError(err.message || 'Using fallback membership plans.');
+      setMembershipPlans([]);
+    } finally {
+      setPlansLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
 
   const handleBuy = async (product) => {
     const checkoutEmail = email.trim();
@@ -152,6 +248,45 @@ export default function StorePage() {
     }
   };
 
+  const isSubscribed = params.get('subscribed') === '1';
+  const subscribedPlan = params.get('plan');
+  const displayPlans = sortPlans(membershipPlans.length > 0 ? membershipPlans : MEMBERSHIP_FALLBACK_PLANS);
+
+  const handleSubscribe = async (plan) => {
+    const checkoutEmail = email.trim();
+    if (!checkoutEmail) {
+      setEmailError('Enter your email to continue');
+      focusEmailField();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(checkoutEmail)) {
+      setEmailError('Please enter a valid email address');
+      focusEmailField();
+      return;
+    }
+    setEmailError('');
+    setSubscribeLoading(plan);
+    try {
+      window.localStorage.setItem('storeCheckoutEmail', checkoutEmail);
+      const res = await fetch(`${API}/api/store/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_email: checkoutEmail, plan }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Checkout failed');
+      }
+      const { checkout_url } = await res.json();
+      window.location.href = checkout_url;
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubscribeLoading(null);
+    }
+  };
+
+  if (isSubscribed) return <SubscribedPage plan={subscribedPlan} />;
   if (isSuccess) return <SuccessPage sessionId={sessionId} />;
 
   return (
@@ -220,6 +355,92 @@ export default function StorePage() {
         )}
       </div>
 
+      {/* Membership Plans */}
+      <div style={{ background: '#111111', padding: '70px 24px', marginBottom: 0 }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '6px 16px', marginBottom: 16 }}>
+              <Crown size={14} style={{ color: '#f59e0b' }} />
+              <span style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>Membership</span>
+            </div>
+            <h2 style={{ color: '#ffffff', fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 900, margin: '0 0 12px', letterSpacing: '-1px' }}>Get Everything. Every Month.</h2>
+            <p style={{ color: '#9ca3af', fontSize: 16, maxWidth: 520, margin: '0 auto' }}>One membership unlocks every product we've ever made and every new drop going forward.</p>
+            {plansLoading && (
+              <p style={{ color: '#6b7280', fontSize: 13, margin: '14px 0 0' }}>Syncing live membership plans…</p>
+            )}
+            {!plansLoading && plansError && (
+              <p style={{ color: '#fbbf24', fontSize: 13, margin: '14px 0 0' }}>{plansError}</p>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+            {displayPlans.map((plan) => {
+              const isFeatured = plan.id === 'annual';
+              const pricing = formatPlanPrice(plan);
+              const buttonIcon = isFeatured ? <Crown size={15} /> : <Repeat size={15} />;
+              const buttonLabel = isFeatured ? 'Subscribe Annual' : 'Subscribe Monthly';
+
+              return (
+                <div
+                  key={plan.id}
+                  style={{
+                    background: '#1f2937',
+                    border: isFeatured ? '2px solid #f59e0b' : '1px solid #374151',
+                    borderRadius: 16,
+                    padding: '32px 28px',
+                    position: 'relative',
+                  }}
+                >
+                  {isFeatured && (
+                    <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', background: '#f59e0b', color: '#000', fontSize: 11, fontWeight: 900, padding: '4px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                      BEST VALUE
+                    </div>
+                  )}
+                  <div style={{ color: isFeatured ? '#f59e0b' : '#9ca3af', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+                    {plan.interval === 'year' ? 'Annual' : 'Monthly'}
+                  </div>
+                  <div style={{ color: '#ffffff', fontSize: 42, fontWeight: 900, marginBottom: 4 }}>
+                    {pricing.amount}
+                    <span style={{ fontSize: 18, fontWeight: 400, color: '#6b7280' }}>{pricing.suffix}</span>
+                  </div>
+                  <p style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, margin: '0 0 10px' }}>{plan.name}</p>
+                  <p style={{ color: '#9ca3af', fontSize: 14, margin: '0 0 24px', lineHeight: 1.6 }}>{plan.description}</p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px' }}>
+                    {(plan.perks || []).map((perk) => (
+                      <li key={perk} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#d1d5db', fontSize: 14, marginBottom: 10 }}>
+                        <Check size={14} style={{ color: isFeatured ? '#f59e0b' : '#22c55e', flexShrink: 0 }} />{perk}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => handleSubscribe(plan.id)}
+                    disabled={subscribeLoading === plan.id}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '13px 20px',
+                      background: isFeatured ? '#f59e0b' : '#ffffff',
+                      color: isFeatured ? '#000000' : '#111111',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontWeight: 800,
+                      fontSize: 15,
+                      cursor: 'pointer',
+                      opacity: subscribeLoading === plan.id ? 0.7 : 1,
+                    }}
+                  >
+                    {buttonIcon}
+                    {subscribeLoading === plan.id ? 'Loading…' : hasValidEmail ? buttonLabel : 'Enter Email First'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Trust bar */}
       <div style={s.trustBar}>
         {[
@@ -243,6 +464,36 @@ export default function StorePage() {
           hasValidEmail={hasValidEmail}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Subscribed Page ──────────────────────────────────────────────────────────
+
+function SubscribedPage({ plan }) {
+  const planLabel = plan === 'annual' ? 'Annual' : 'Monthly';
+  return (
+    <div style={{ ...s.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <div style={s.successBox}>
+        <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 16 }}>🎉</div>
+        <h1 style={{ color: '#111111', fontSize: 28, fontWeight: 800, margin: '0 0 12px' }}>
+          You're a Member!
+        </h1>
+        <p style={{ color: '#6b7280', fontSize: 16, lineHeight: 1.6, marginBottom: 24 }}>
+          Your <strong>{planLabel} Membership</strong> is active.<br />
+          Check your email for your receipt and access details.
+        </p>
+        <div style={s.successNote}>
+          <Crown size={18} style={{ color: '#f59e0b' }} />
+          <span>Full access to all products unlocked</span>
+        </div>
+        <button
+          style={{ ...s.buyBtn, width: '100%', justifyContent: 'center', marginTop: 18, padding: '14px 18px' }}
+          onClick={() => window.location.href = '/store'}
+        >
+          <ShoppingCart size={16} /> Browse All Products
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,9 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API_URL from '../config/api';
 import BrandLogo from '../components/BrandLogo';
 import './AuthPages.css';
+
+const sanitizeNextPath = (candidate) => {
+  if (!candidate || typeof candidate !== 'string') {
+    return '/';
+  }
+
+  if (!candidate.startsWith('/') || candidate.startsWith('//')) {
+    return '/';
+  }
+
+  return candidate;
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,7 +23,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
+  const nextPath = sanitizeNextPath(searchParams.get('next'));
+  const signupHref = nextPath === '/' ? '/signup' : `/signup?next=${encodeURIComponent(nextPath)}`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,7 +51,7 @@ export default function LoginPage() {
 
       const { access_token, user } = data;
       login(access_token, user);
-      navigate('/');
+      navigate(nextPath);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -85,7 +100,7 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-footer">
-          <p>Don't have an account? <Link to="/signup">Sign Up</Link></p>
+          <p>Don't have an account? <Link to={signupHref}>Sign Up</Link></p>
         </div>
       </div>
     </div>

@@ -1,4 +1,87 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
+// --- Vault Section ---
+const VAULT_KEY_LIST = [
+  'openai_key', 'anthropic_key', 'dalle_key', 'gemini_key', 'sendgrid_key', 'sendgrid_from_email',
+  'mailchimp_key', 'stripe_key', 'stripe_webhook_secret', 'gumroad_key', 'gumroad_secret',
+  'tiktok_api_key', 'tiktok_api_secret', 'instagram_graph_api_key', 'twitter_api_key',
+  'linkedin_api_key', 'youtube_api_key', 'elevenlabs_key', 'pexels_key', 'pixabay_key', 'mongodb_url'
+];
+  // Vault state
+
+
+  // Fetch all decrypted keys for Vault section
+  const loadVaultKeys = async () => {
+    setVaultLoading(true);
+    setVaultError(null);
+    try {
+      const response = await fetch(`${API}/api/keys/vault`, {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load vault keys (${response.status})`);
+      }
+      const data = await response.json();
+      setVaultKeys(data);
+    } catch (err) {
+      setVaultError(err.message);
+      setVaultKeys({});
+    } finally {
+      setVaultLoading(false);
+    }
+  };
+
+  // Move useEffect inside SettingsPage component
+  // Vault key display helper
+  const getVaultKeyLabel = (key) => {
+    const template = BACKEND_KEY_TEMPLATES.find((t) => t.name === key);
+    return template ? template.label : key;
+  };
+  // Vault Section UI
+  const VaultSection = () => (
+    <div className="content-section">
+      <h2>Vault: All API Keys</h2>
+      <p className="text-secondary" style={{marginBottom: 12}}>These are the decrypted keys your app will read and use. <b>Keep these secure!</b></p>
+      {vaultLoading ? (
+        <div className="empty-state"><p>Loading vault keys...</p></div>
+      ) : vaultError ? (
+        <div className="alert alert-error">{vaultError}</div>
+      ) : Object.keys(vaultKeys).length === 0 ? (
+        <div className="empty-state"><p>No keys found in vault.</p></div>
+      ) : (
+        <div className="keys-table">
+          {VAULT_KEY_LIST.map((key) => (
+            vaultKeys[key] ? (
+              <div key={key} className="key-row">
+                <div className="key-info">
+                  <div className="key-name">
+                    <h4>{getVaultKeyLabel(key)}</h4>
+                    <span className={`badge badge-${(BACKEND_KEY_TEMPLATES.find(t=>t.name===key)?.category||'Other').toLowerCase()}`}>{BACKEND_KEY_TEMPLATES.find(t=>t.name===key)?.category||'Other'}</span>
+                  </div>
+                  <div className="key-display">
+                    <input
+                      type={showKey[key] ? 'text' : 'password'}
+                      value={vaultKeys[key]}
+                      readOnly
+                      style={{width: '100%', fontFamily: 'monospace', background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: 4, fontSize: 14}}
+                    />
+                  </div>
+                </div>
+                <div className="key-actions">
+                  <button
+                    className="btn btn-secondary btn-small"
+                    onClick={() => setShowKey((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  >
+                    {showKey[key] ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+            ) : null
+          ))}
+        </div>
+      )}
+    </div>
+  );
 import { AlertCircle, Check, ExternalLink, Plus, RefreshCw, Save, X } from 'lucide-react';
 import './Pages.css';
 import API_URL from '../config/api';
@@ -6,16 +89,27 @@ import API_URL from '../config/api';
 const API = API_URL;
 
 const BACKEND_KEY_TEMPLATES = [
-  { name: 'openai_key', label: 'OpenAI API Key', category: 'AI', description: 'Used for product ideation, copy, and AI generation.' },
-  { name: 'anthropic_key', label: 'Anthropic Claude Key', category: 'AI', description: 'Used for long-form analysis and strategy tasks.' },
-  { name: 'dalle_key', label: 'DALL-E API Key', category: 'AI', description: 'Used for image generation and visual assets.' },
-  { name: 'sendgrid_key', label: 'SendGrid API Key', category: 'Email', description: 'Used for transactional email and sequences.' },
-  { name: 'sendgrid_from_email', label: 'SendGrid Sender Email', category: 'Email', description: 'Verified sender address used in outgoing emails.' },
-  { name: 'stripe_key', label: 'Stripe Live Key', category: 'Platform', description: 'Used for payments and checkout sessions.' },
-  { name: 'stripe_webhook_secret', label: 'Stripe Webhook Secret', category: 'Platform', description: 'Used to verify Stripe webhook events and finalize completed payments.' },
-  { name: 'gumroad_key', label: 'Gumroad Access Token', category: 'Platform', description: 'Used to publish to Gumroad and sync sales data.' },
-  { name: 'gumroad_secret', label: 'Gumroad Secret', category: 'Platform', description: 'Legacy optional secret for older Gumroad auth flows.' },
-  { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database', description: 'Used for persistent storage and backend reconnects.' }
+  { name: 'openai_key', label: 'OpenAI API Key', category: 'AI', required: true, description: 'Used for product ideation, copy, and AI generation.' },
+  { name: 'anthropic_key', label: 'Anthropic Claude Key', category: 'AI', required: false, description: 'Used for long-form analysis and strategy tasks.' },
+  { name: 'dalle_key', label: 'DALL-E API Key', category: 'AI', required: false, description: 'Used for image generation and visual assets. Falls back to OpenAI key if not set.' },
+  { name: 'gemini_key', label: 'Gemini API Key', category: 'AI', required: false, description: 'Used for Gemini AI generation tasks.' },
+  { name: 'sendgrid_key', label: 'SendGrid API Key', category: 'Email', required: false, description: 'Used for transactional email and sequences.' },
+  { name: 'sendgrid_from_email', label: 'SendGrid Sender Email', category: 'Email', required: false, description: 'Verified sender address used in outgoing emails.' },
+  { name: 'mailchimp_key', label: 'Mailchimp API Key', category: 'Email', required: false, description: 'Used for email list management and campaigns.' },
+  { name: 'stripe_key', label: 'Stripe Secret Key', category: 'Commerce', required: false, description: 'Used for Stripe payments and checkout sessions.' },
+  { name: 'stripe_webhook_secret', label: 'Stripe Webhook Secret', category: 'Commerce', required: false, description: 'Used to verify Stripe webhook events and finalize completed payments.' },
+  { name: 'gumroad_key', label: 'Gumroad Access Token', category: 'Commerce', required: true, description: 'Used to publish to Gumroad and sync sales data.' },
+  { name: 'gumroad_secret', label: 'Gumroad Secret', category: 'Commerce', required: false, description: 'Optional secret for Gumroad OAuth auth flows.' },
+  { name: 'tiktok_api_key', label: 'TikTok Client Key', category: 'Social', required: false, description: 'Used for TikTok content posting API.' },
+  { name: 'tiktok_api_secret', label: 'TikTok Client Secret', category: 'Social', required: false, description: 'Used for TikTok OAuth authentication.' },
+  { name: 'instagram_graph_api_key', label: 'Instagram / Meta Access Token', category: 'Social', required: false, description: 'Used to post to Instagram via the Meta Graph API.' },
+  { name: 'twitter_api_key', label: 'Twitter / X API Key', category: 'Social', required: false, description: 'Used for Twitter/X posting and analytics.' },
+  { name: 'linkedin_api_key', label: 'LinkedIn Client ID', category: 'Social', required: false, description: 'Used for LinkedIn content publishing.' },
+  { name: 'youtube_api_key', label: 'YouTube API Key', category: 'Social', required: false, description: 'Used for YouTube Shorts upload and channel analytics.' },
+  { name: 'elevenlabs_key', label: 'ElevenLabs API Key', category: 'Video', required: false, description: 'Used for AI voiceover generation in faceless videos.' },
+  { name: 'pexels_key', label: 'Pexels API Key', category: 'Video', required: false, description: 'Used for background footage in generated videos.' },
+  { name: 'pixabay_key', label: 'Pixabay API Key', category: 'Video', required: false, description: 'Used as fallback footage source for video generation.' },
+  { name: 'mongodb_url', label: 'MongoDB Connection String', category: 'Database', required: true, description: 'Used for persistent storage and backend reconnects.' }
 ];
 
 const SOCIAL_LINKS_STORAGE_KEY = 'fiilthy_social_accounts';
@@ -84,6 +178,13 @@ const getAuthHeaders = () => {
 };
 
 const SettingsPage = () => {
+      useEffect(() => {
+        loadVaultKeys();
+      }, []);
+    const [vaultKeys, setVaultKeys] = useState({});
+    const [vaultLoading, setVaultLoading] = useState(false);
+    const [vaultError, setVaultError] = useState(null);
+    const [showKey, setShowKey] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,7 +197,7 @@ const SettingsPage = () => {
     key: ''
   });
 
-  const categories = ['AI', 'Platform', 'Email', 'Social', 'Analytics', 'Database'];
+  const categories = ['AI', 'Commerce', 'Email', 'Social', 'Video', 'Analytics', 'Database'];
 
   const loadKeyStatus = async () => {
     setLoading(true);
@@ -137,7 +238,7 @@ const SettingsPage = () => {
 
   const apiKeys = useMemo(() => {
     return BACKEND_KEY_TEMPLATES.map((template) => {
-      const rawStatus = keyStatus[template.name] || 'Missing';
+      const rawStatus = keyStatus[template.name] || '[FAIL] Not configured';
       const configured = String(rawStatus).includes('Configured') || String(rawStatus).includes('Connected');
 
       return {
@@ -244,6 +345,8 @@ const SettingsPage = () => {
 
   return (
     <div className="page">
+        {/* Vault Section - All decrypted keys */}
+        <VaultSection />
       <div className="page-header">
         <h1>Settings & API Keys</h1>
         <p>Manage all API credentials and integrations for the Factory system</p>
@@ -264,17 +367,31 @@ const SettingsPage = () => {
 
         <div className="keys-summary">
           <div className="summary-item">
-            <span className="summary-label">Supported Keys</span>
-            <span className="summary-value">{apiKeys.length}</span>
+            <span className="summary-label">Required Keys</span>
+            <span className="summary-value text-success">
+              {apiKeys.filter((key) => key.required && key.configured).length}
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                /{apiKeys.filter((key) => key.required).length}
+              </span>
+            </span>
           </div>
           <div className="summary-item">
-            <span className="summary-label">Configured</span>
-            <span className="summary-value text-success">{apiKeys.filter((key) => key.configured).length}</span>
+            <span className="summary-label">Optional Keys</span>
+            <span className="summary-value" style={{ color: 'var(--text-secondary)' }}>
+              {apiKeys.filter((key) => !key.required && key.configured).length}
+              <span style={{ fontWeight: 400 }}>
+                /{apiKeys.filter((key) => !key.required).length}
+              </span>
+            </span>
           </div>
-          <div className="summary-item">
-            <span className="summary-label">Missing</span>
-            <span className="summary-value text-warning">{apiKeys.filter((key) => !key.configured).length}</span>
-          </div>
+          {apiKeys.filter((key) => key.required && !key.configured).length > 0 && (
+            <div className="summary-item">
+              <span className="summary-label">Required Missing</span>
+              <span className="summary-value text-warning">
+                {apiKeys.filter((key) => key.required && !key.configured).length}
+              </span>
+            </div>
+          )}
         </div>
 
         {syncStatus && (
@@ -324,6 +441,9 @@ const SettingsPage = () => {
                   <div className="key-name">
                     <h4>{key.label}</h4>
                     <span className={`badge badge-${key.category.toLowerCase()}`}>{key.category}</span>
+                    {!key.required && (
+                      <span className="badge" style={{ background: 'rgba(255,255,255,0.07)', color: 'var(--text-secondary)', fontSize: '10px' }}>Optional</span>
+                    )}
                   </div>
                   <p className="text-secondary">{key.description}</p>
                   <div className="key-display">

@@ -154,14 +154,14 @@ class SecureKeyVault:
         },
         "tiktok": {
             "name": "TikTok",
-            "fields": ["access_token", "client_key", "client_secret"],
+            "fields": ["access_token", "client_key", "client_secret", "redirect_uri"],
             "description": "Short-form video",
             "icon": "🎵",
             "category": "social"
         },
         "youtube": {
             "name": "YouTube",
-            "fields": ["api_key", "client_id", "client_secret", "refresh_token"],
+            "fields": ["api_key", "channel_id", "client_id", "client_secret", "refresh_token"],
             "description": "Video content & Shorts",
             "icon": "🎬",
             "category": "social"
@@ -266,6 +266,20 @@ class SecureKeyVault:
             "icon": "🔴",
             "category": "video"
         },
+        "pexels": {
+            "name": "Pexels",
+            "fields": ["api_key"],
+            "description": "Stock photos and footage",
+            "icon": "🎬",
+            "category": "video"
+        },
+        "pixabay": {
+            "name": "Pixabay",
+            "fields": ["api_key"],
+            "description": "Stock images and video",
+            "icon": "🖼️",
+            "category": "video"
+        },
         
         # === PODCASTING & AUDIO ===
         "spotify": {
@@ -307,7 +321,7 @@ class SecureKeyVault:
         },
         "sendgrid": {
             "name": "SendGrid",
-            "fields": ["api_key"],
+            "fields": ["api_key", "from_email"],
             "description": "Transactional emails",
             "icon": "📨",
             "category": "email"
@@ -470,6 +484,13 @@ class SecureKeyVault:
             "fields": ["api_key"],
             "description": "AI assistant",
             "icon": "🧠",
+            "category": "ai"
+        },
+        "gemini": {
+            "name": "Google Gemini",
+            "fields": ["api_key"],
+            "description": "Gemini AI generation",
+            "icon": "✨",
             "category": "ai"
         },
         "replicate": {

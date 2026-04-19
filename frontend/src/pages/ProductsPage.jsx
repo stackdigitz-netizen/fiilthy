@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Clock, TrendingUp, Zap, Image, Loader, Check, X, Share2, FolderOpen, ExternalLink, Rocket, Mail, FileText } from 'lucide-react';
+import { Package, Clock, TrendingUp, Zap, Image, Loader, Check, X, Share2, FolderOpen, ExternalLink, Rocket, Mail, FileText, Download } from 'lucide-react';
+import { ProductFilesService } from '../services/ProductFilesService';
 import WorkflowGuide from '../components/WorkflowGuide';
 import ProductsDashboard from '../components/ProductsDashboard';
 import './Pages.css';
@@ -67,6 +68,7 @@ const ProductsPage = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('generate'); // 'generate' or 'manage'
   const [showHiddenProducts, setShowHiddenProducts] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   // Load products from backend on mount
   useEffect(() => {
@@ -129,6 +131,17 @@ const ProductsPage = () => {
       console.error('Generation error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadProduct = async (product) => {
+    setDownloadingId(product.id);
+    try {
+      await ProductFilesService.downloadOwnerBundle(product);
+    } catch (error) {
+      alert(`Download failed: ${error.message}`);
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -556,6 +569,22 @@ const ProductsPage = () => {
                       🛍️ List on Gumroad <ExternalLink size={11} />
                     </a>
                   </div>
+                  {/* Row 3: Download */}
+                  <button
+                    onClick={() => downloadProduct(product)}
+                    disabled={downloadingId === product.id}
+                    style={{
+                      width: '100%', padding: '9px 8px',
+                      backgroundColor: downloadingId === product.id ? '#6b7280' : '#111827',
+                      color: 'white', border: 'none', borderRadius: '8px',
+                      cursor: downloadingId === product.id ? 'not-allowed' : 'pointer',
+                      fontSize: '12px', fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                    }}
+                  >
+                    <Download size={13} />
+                    {downloadingId === product.id ? 'Preparing ZIP…' : '⬇ Download Product'}
+                  </button>
                   <div style={{ fontSize: '11px', color: '#bbb', textAlign: 'right' }}>
                     {product.created_at ? new Date(product.created_at).toLocaleDateString() : ''}
                   </div>

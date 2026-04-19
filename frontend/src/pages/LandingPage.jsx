@@ -205,7 +205,7 @@ export default function LandingPage() {
                 <li style={{ padding: '8px 0' }}>&#10003; Advanced analytics</li>
                 <li style={{ padding: '8px 0' }}>&#10003; Priority support</li>
               </ul>
-              <Link to="/signup?plan=empire" className="auth-button" style={{ display: 'inline-block', padding: '12px 24px', fontSize: '16px', textDecoration: 'none', textAlign: 'center', marginTop: '20px' }}>
+              <Link to="/signup" className="auth-button" style={{ display: 'inline-block', padding: '12px 24px', fontSize: '16px', textDecoration: 'none', textAlign: 'center', marginTop: '20px' }}>
                 Start Building Empire
               </Link>
             </div>

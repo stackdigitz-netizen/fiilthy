@@ -43,6 +43,8 @@ export default function CommandCenterPage() {
   const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState({});
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState('');
 
   const authHeader = () => {
     const t = localStorage.getItem('authToken');
@@ -96,11 +98,23 @@ export default function CommandCenterPage() {
   };
 
   const startAll = async () => {
-    await fetch(`${API}/api/agents/start-all`, {
-      method: 'POST',
-      headers: authHeader(),
-    });
-    await fetchStatus();
+    setLaunching(true);
+    setLaunchError('');
+    try {
+      const res = await fetch(`${API}/api/agents/start-all`, {
+        method: 'POST',
+        headers: authHeader(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      await fetchStatus();
+    } catch (err) {
+      setLaunchError(err.message);
+    } finally {
+      setLaunching(false);
+    }
   };
 
   const activeDivisions = Object.values(divisions).filter(d => d.is_running).length;
@@ -132,10 +146,13 @@ export default function CommandCenterPage() {
               {pendingApprovals} awaiting approval
             </a>
           )}
-          <button className="cc-btn-launch" onClick={startAll}>
+          <button className="cc-btn-launch" onClick={startAll} disabled={launching}>
             <Zap size={14} />
-            Launch All
+            {launching ? 'Starting…' : 'Launch All'}
           </button>
+          {launchError && (
+            <span style={{ color: '#ef4444', fontSize: 12, marginLeft: 8 }}>{launchError}</span>
+          )}
         </div>
       </div>
 

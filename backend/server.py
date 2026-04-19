@@ -76,7 +76,6 @@ from core.routes_product_launch import router as router_product_launch
 from core.routes_quality import router as router_quality
 from core.routes_agents import router as router_agents
 from core.routes_store import router as router_store, SAMPLE_PRODUCTS
-from core.routes_intelligence import router as router_intelligence
 from core.product_content import generate_product_files
 from ai_services.product_cycle_scheduler import get_cycle_scheduler
 from ai_services.agent_orchestrator import get_orchestrator
@@ -452,9 +451,6 @@ async def signup(user_data: UserCreate):
             "password_hash": hash_password(user_data.password),
             "first_name": user_data.first_name,
             "last_name": user_data.last_name,
-            "plan": "free",
-            "stripe_customer_id": None,
-            "stripe_subscription_id": None,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
         }
@@ -470,9 +466,6 @@ async def signup(user_data: UserCreate):
             email=user_doc["email"],
             first_name=user_doc["first_name"],
             last_name=user_doc["last_name"],
-            plan=user_doc.get("plan", "free"),
-            stripe_customer_id=user_doc.get("stripe_customer_id"),
-            stripe_subscription_id=user_doc.get("stripe_subscription_id"),
             created_at=user_doc["created_at"],
             updated_at=user_doc["updated_at"]
         )
@@ -518,9 +511,6 @@ async def login(login_data: LoginRequest):
             email=user_doc["email"],
             first_name=user_doc.get("first_name"),
             last_name=user_doc.get("last_name"),
-            plan=user_doc.get("plan", "free"),
-            stripe_customer_id=user_doc.get("stripe_customer_id"),
-            stripe_subscription_id=user_doc.get("stripe_subscription_id"),
             created_at=user_doc["created_at"],
             updated_at=user_doc["updated_at"]
         )
@@ -629,57 +619,35 @@ async def store_api_keys(keys: APIKeyInput, _auth: dict = Depends(require_auth))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@api_router.get("/keys/status")
-async def get_keys_status():
-    """Check which API keys are configured"""
-    current_mongo_url = resolve_raw_mongo_url() or mongo_url
-    supported_mongo_url = resolve_mongo_url() or mongo_url
+
+# SECURE: Only allow authenticated users to fetch all decrypted keys for Vault page
+from fastapi import Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+security = HTTPBearer()
+
+@api_router.get("/keys/vault", response_model=Dict[str, str])
+async def get_all_keys_vault(credentials: HTTPAuthorizationCredentials = Security(security)):
+    """Return all decrypted API keys for the Vault page (authenticated only)"""
+    # Optionally: Add more robust user validation here
+    # Validate token (reuse get_current_user logic)
+    token = credentials.credentials
+    payload = decode_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # List of all possible keys to expose in the Vault
     key_names = [
-        'openai_key',
-        'anthropic_key',
-        'dalle_key',
-        'gemini_key',
-        'sendgrid_key',
-        'sendgrid_from_email',
-        'mailchimp_key',
-        'stripe_key',
-        'stripe_webhook_secret',
-        'gumroad_key',
-        'gumroad_secret',
-        'tiktok_api_key',
-        'tiktok_api_secret',
-        'instagram_graph_api_key',
-        'twitter_api_key',
-        'linkedin_api_key',
-        'youtube_api_key',
-        'elevenlabs_key',
-        'pexels_key',
-        'pixabay_key',
-        'mongodb_url'
+        'openai_key', 'anthropic_key', 'dalle_key', 'gemini_key', 'sendgrid_key', 'sendgrid_from_email',
+        'mailchimp_key', 'stripe_key', 'stripe_webhook_secret', 'gumroad_key', 'gumroad_secret',
+        'tiktok_api_key', 'tiktok_api_secret', 'instagram_graph_api_key', 'twitter_api_key',
+        'linkedin_api_key', 'youtube_api_key', 'elevenlabs_key', 'pexels_key', 'pixabay_key', 'mongodb_url'
     ]
-    status = {}
-    
+    keys = {}
     for key_name in key_names:
-        key_value = keys_manager.get_key(key_name)
-        if key_name == 'mongodb_url' and not key_value:
-            key_value = current_mongo_url
-        status[key_name] = "[OK] Configured" if key_value else "[FAIL] Not configured"
-    
-    # Report database reachability separately from key storage.
-    if current_mongo_url and not is_supported_mongo_url(current_mongo_url):
-        status['database_connection'] = "[WARN] Unsupported connection string"
-        status['mongodb_url'] = "[WARN] Configured, unsupported connection string"
-    elif client is not None and supported_mongo_url:
-        try:
-            await client.admin.command('ping')
-            status['database_connection'] = "[OK] Connected"
-        except Exception:
-            status['database_connection'] = "[WARN] Disconnected"
-            status['mongodb_url'] = "[WARN] Configured, database disconnected"
-    else:
-        status['database_connection'] = "[INFO] Not connected yet"
-    
-    return {"api_keys_status": status}
+        value = keys_manager.get_key(key_name)
+        if value:
+            keys[key_name] = value
+    return keys
 
 
 # ==================== AI Service Integrations ====================
@@ -4949,73 +4917,6 @@ async def sync_multiple_products(product_ids: List[str]):
 
 # ==================== Payment Processing (Stripe) ====================
 
-class SubscribeRequest(BaseModel):
-    customer_email: str
-    plan: str = "empire"
-    success_url: str = "https://fiilthy.ai/success"
-    cancel_url: str = "https://fiilthy.ai/#pricing"
-
-@api_router.post("/payments/subscribe")
-async def create_subscription_checkout(request: SubscribeRequest, authorization: Optional[str] = Header(None)):
-    """Create a Stripe Checkout session for the $49/mo Empire Builder plan"""
-    try:
-        stripe_key = normalize_env_value(keys_manager.get_key('stripe_key'))
-        if not stripe_key:
-            raise HTTPException(status_code=400, detail="Stripe not configured")
-
-        import stripe as stripe_lib
-        stripe_lib.api_key = stripe_key
-
-        # Get or create the recurring price
-        price_id = normalize_env_value(os.environ.get('STRIPE_PRICE_EMPIRE'))
-        if not price_id:
-            # Create the price once if not configured
-            products = stripe_lib.Product.list(active=True, limit=100)
-            empire_product = next((p for p in products.data if p.get('metadata', {}).get('plan') == 'empire'), None)
-            if not empire_product:
-                empire_product = stripe_lib.Product.create(
-                    name="FiiLTHY Empire Builder",
-                    description="Unlimited AI product generation, autonomous mode, multi-platform publishing",
-                    metadata={"plan": "empire"}
-                )
-            prices = stripe_lib.Price.list(product=empire_product.id, active=True, limit=10)
-            empire_price = next((p for p in prices.data if p.recurring and p.unit_amount == 4900), None)
-            if not empire_price:
-                empire_price = stripe_lib.Price.create(
-                    product=empire_product.id,
-                    unit_amount=4900,
-                    currency="usd",
-                    recurring={"interval": "month"},
-                )
-            price_id = empire_price.id
-
-        # Get user id from token if present
-        user_id = None
-        if authorization and authorization.startswith("Bearer "):
-            try:
-                payload = decode_token(authorization.split(" ", 1)[1])
-                user_id = payload.get("sub")
-            except Exception:
-                pass
-
-        session = stripe_lib.checkout.Session.create(
-            payment_method_types=["card"],
-            mode="subscription",
-            line_items=[{"price": price_id, "quantity": 1}],
-            customer_email=request.customer_email,
-            success_url=request.success_url + "?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=request.cancel_url,
-            metadata={"plan": request.plan, "user_id": user_id or ""},
-        )
-
-        return {"checkout_url": session.url, "session_id": session.id}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Subscription checkout error: {str(e)}")
-
-
 class StripeProduct(BaseModel):
     product_id: str
     price_cents: int = Field(..., description="Price in cents (e.g., 2999 for $29.99)")
@@ -5165,35 +5066,8 @@ async def handle_stripe_webhook(request: Request):
             raise HTTPException(status_code=400, detail="Invalid payload")
 
         event_type = event['type']
-
-        # Handle subscription checkout completion
-        if event_type in ('checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated'):
-            session_data = event['data']['object']
-
-            # Subscription activation
-            if event_type == 'checkout.session.completed' and session_data.get('mode') == 'subscription':
-                customer_email = session_data.get('customer_email')
-                metadata = session_data.get('metadata', {})
-                plan = metadata.get('plan', 'empire')
-                user_id = metadata.get('user_id')
-                customer_id = session_data.get('customer')
-                subscription_id = session_data.get('subscription')
-
-                if db is not None and customer_email:
-                    query = {"id": user_id} if user_id else {"email": customer_email}
-                    await db['users'].update_one(
-                        query,
-                        {"$set": {
-                            "plan": plan,
-                            "stripe_customer_id": customer_id,
-                            "stripe_subscription_id": subscription_id,
-                            "updated_at": datetime.now(timezone.utc),
-                        }},
-                        upsert=False,
-                    )
-                return {"status": "received"}
-
-        # Handle checkout.session.completed event (one-time purchases)
+        
+        # Handle checkout.session.completed event
         if event_type == 'checkout.session.completed':
             session_data = event['data']['object']
             session_id = session_data.get('id')
@@ -5944,7 +5818,6 @@ app.include_router(router_product_launch)  # NEW: Product launch routes
 app.include_router(router_quality)          # NEW: Quality control routes
 app.include_router(router_agents)           # NEW: Agent empire routes
 app.include_router(router_store)            # NEW: Public storefront + delivery
-app.include_router(router_intelligence)     # Intelligence: competitor, email, shorts
 
 # Configure CORS
 _cors_env = os.environ.get('CORS_ORIGINS', '')
