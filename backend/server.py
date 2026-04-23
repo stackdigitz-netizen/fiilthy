@@ -5849,7 +5849,7 @@ _cors_env = os.environ.get('CORS_ORIGINS', '')
 allowed_origins = [o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else []
 # Always allow localhost dev and Vercel deployments
 _defaults = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002',
-             'https://frontend-one-ashen-16.vercel.app']
+             'https://frontend-one-ashen-16.vercel.app', 'https://frontend-jmbszlie3-stackdigitz-5790s-projects.vercel.app']
 for _o in _defaults:
     if _o not in allowed_origins:
         allowed_origins.append(_o)
