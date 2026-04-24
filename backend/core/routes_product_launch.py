@@ -12,6 +12,9 @@ from datetime import datetime, timezone, timedelta
 import logging
 import uuid
 
+from ai_services.auth_utils import require_auth
+from ai_services.usage_manager import check_and_increment_usage
+
 from ai_services.gumroad_publisher import GumroadPublisher
 from ai_services.marketplace_integrations import MarketplaceIntegrations
 from ai_services.multi_platform_ad_manager import get_campaign_manager
@@ -111,6 +114,7 @@ async def generate_product_videos(
     request: VideoGenerationRequest,
     background_tasks: BackgroundTasks,
     http_request: Request,
+    _auth: dict = Depends(require_auth),
 ):
     """
     Generate real videos for a product (TikTok + Instagram)
@@ -118,6 +122,10 @@ async def generate_product_videos(
     Returns job ID for progress tracking
     """
     try:
+        # SAAS: Check usage limits before running AI
+        user_id = _auth.get("sub") or _auth.get("user_id")
+        await check_and_increment_usage(user_id, db)
+
         db = _get_database(http_request)
         if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
@@ -263,6 +271,7 @@ async def launch_advertising_campaign(
     product_id: str,
     request: CampaignLaunchRequest,
     http_request: Request,
+    _auth: dict = Depends(require_auth),
 ):
     """
     Launch advertising campaign on selected platforms
@@ -270,6 +279,10 @@ async def launch_advertising_campaign(
     Sets up auto-posting with monitoring
     """
     try:
+        # SAAS: Check usage limits before running AI
+        user_id = _auth.get("sub") or _auth.get("user_id")
+        await check_and_increment_usage(user_id, db)
+
         db = _get_database(http_request)
         if db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")

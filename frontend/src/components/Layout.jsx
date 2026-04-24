@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import UpgradeModal from './UpgradeModal';
 import BrandLogo from './BrandLogo';
 import './Layout.css';
 import {
@@ -17,7 +18,8 @@ const Layout = ({ children }) => {
     return window.innerWidth > 768;
   });
   const [pendingApprovals, setPendingApprovals] = useState(0);
-  const { user, logout } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const { user, logout, refreshUser } = useAuth();
 
   useEffect(() => {
     const handleResize = () => setSidebarOpen(window.innerWidth > 768);
@@ -48,6 +50,22 @@ const Layout = ({ children }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // SAAS: Listen for LIMIT_REACHED events
+  useEffect(() => {
+    const handleLimitReached = () => {
+      setShowUpgradeModal(true);
+    };
+    window.addEventListener('LIMIT_REACHED', handleLimitReached);
+    return () => window.removeEventListener('LIMIT_REACHED', handleLimitReached);
+  }, []);
+
+  // SAAS: Refresh user on return from checkout success
+  useEffect(() => {
+    if (location.pathname === '/billing/success') {
+      refreshUser();
+    }
+  }, [location.pathname, refreshUser]);
+
   const navigation = [
     { name: 'Command Center', href: '/',          icon: Cpu },
     { name: 'Approvals',      href: '/approvals', icon: Bell,      badge: pendingApprovals },
@@ -63,6 +81,20 @@ const Layout = ({ children }) => {
   ];
 
   const isActive = (href) => location.pathname === href;
+
+  // SAAS: Plan badge colors
+  const planColors = {
+    free: '#8b949e',
+    starter: '#00bcd4',
+    pro: '#ff6d00',
+    enterprise: '#7c4dff'
+  };
+
+  const plan = user?.plan || 'free';
+  const generationsUsed = user?.generations_used || 0;
+  const planLimits = { free: 5, starter: 50, pro: 500, enterprise: Infinity };
+  const limit = planLimits[plan] || 5;
+  const isUnlimited = limit === Infinity;
 
   return (
     <div className="layout">
@@ -130,6 +162,50 @@ const Layout = ({ children }) => {
             </button>
           </div>
           <div className="top-bar-right">
+            {/* SAAS: Plan Badge */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginRight: 10
+            }}>
+              <span style={{
+                textTransform: 'uppercase',
+                fontSize: 10,
+                fontWeight: 700,
+                color: planColors[plan] || '#8b949e',
+                border: `1px solid ${planColors[plan] || '#8b949e'}`,
+                borderRadius: 6,
+                padding: '2px 8px'
+              }}>
+                {plan}
+              </span>
+              {!isUnlimited && (
+                <span style={{ color: '#8b949e', fontSize: 11 }}>
+                  {generationsUsed}/{limit} used
+                </span>
+              )}
+              {isUnlimited && (
+                <span style={{ color: '#7c4dff', fontSize: 11 }}>Unlimited</span>
+              )}
+              {plan === 'free' && (
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  style={{
+                    background: '#ff6d00',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '4px 12px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Upgrade
+                </button>
+              )}
+            </div>
             <div className="user-badge">{user?.email || 'Signed in'}</div>
             <div className="status-badge">
               <span className="status-dot"></span>
@@ -141,6 +217,13 @@ const Layout = ({ children }) => {
 
         <div className="page-container">{children}</div>
       </main>
+
+      {/* SAAS: Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={plan}
+      />
     </div>
   );
 };

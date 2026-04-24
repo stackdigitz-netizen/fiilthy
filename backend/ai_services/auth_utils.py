@@ -48,6 +48,7 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
     plan: str = "free"
+    generations_used: int = 0
     stripe_customer_id: Optional[str] = None
     stripe_subscription_id: Optional[str] = None
 

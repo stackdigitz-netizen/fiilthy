@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import API_URL from '../config/api';
 
 const AuthContext = createContext(null);
@@ -59,10 +59,28 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
   };
 
+  // SAAS: Refresh user data from backend (called after upgrades)
+  const refreshUser = useCallback(async () => {
+    const storedToken = localStorage.getItem('authToken');
+    if (!storedToken) return;
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { 'Authorization': `Bearer ${storedToken}` }
+      });
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+    } catch (e) {
+      console.error('Failed to refresh user:', e);
+    }
+  }, []);
+
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

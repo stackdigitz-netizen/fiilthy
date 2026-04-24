@@ -73,6 +73,9 @@ function AppRoutes() {
         <Route path="/vault" element={<VaultPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/success" element={<SuccessPage />} />
+        <Route path="/billing/success" element={<CommandCenterPage />} />
+        <Route path="/billing/cancel" element={<CommandCenterPage />} />
+
         <Route path="/:page" element={<LegalPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
