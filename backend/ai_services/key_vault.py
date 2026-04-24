@@ -13,7 +13,7 @@ class SecureKeyVault:
     def __init__(self, db, user_id: str):
         self.db = db
         self.user_id = user_id
-        self._encryption_key = self._load_or_create_user_key()
+        self._encryption_key = Fernet.generate_key()
         self._fernet = Fernet(self._encryption_key)
 
     # ---------------------------------------------------------
