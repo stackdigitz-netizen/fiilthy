@@ -3,7 +3,7 @@
   "buildCommand": "npm install && npm run build",
   "outputDirectory": "build",
   "env": {
-    "REACT_APP_BACKEND_URL": "https://adequate-respect-production-7ef0.up.railway.app",
+    "REACT_APP_BACKEND_URL": "https://fiilthy-api-production.up.railway.app",
     "CI": "false"
   },
   "routes": [
