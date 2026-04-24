@@ -228,7 +228,7 @@ analytics_engine = AnalyticsEngine(db)
 learning_engine = LearningEngine(db) if db is not None else None
 real_product_generator = RealProductGenerator()
 gumroad_publisher = GumroadPublisher()
-key_vault = SecureKeyVault(db, "system")
+try:`n    key_vault = SecureKeyVault(db, "system")`nexcept Exception as e:`n    print(f"Warning: key_vault init failed: {e}")`n    key_vault = None
 opportunity_hunter = OpportunityHunter(db)
 product_discovery = ProductDiscoveryEngine(db)
 project_manager = ProjectFileManager(db)
