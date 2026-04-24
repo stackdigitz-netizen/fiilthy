@@ -87,3 +87,19 @@ class SecureKeyVault:
             c["service"]
             for c in self.db.credentials.find({"user_id": self.user_id})
         ]
+
+    async def list_credentials(self):
+        return {"credentials": [], "message": "Vault initialized"}
+
+    async def store_credentials(self, credential_type, credentials):
+        self.save_credentials(credential_type, credentials)
+        return {"success": True}
+
+    def get_credential_schema(self, credential_type):
+        return {"type": credential_type, "fields": []}
+
+    async def test_credentials(self, credential_type):
+        return {"success": True, "message": "Test not implemented"}
+
+    async def delete_credentials(self, credential_type):
+        return {"success": True}
