@@ -5952,5 +5952,3 @@ if __name__ == "__main__":
         reload=os.environ.get('ENVIRONMENT') != 'production',
         log_level="info"
     )
-#   d e p l o y   t r i g g e r  
- 
