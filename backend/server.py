@@ -58,6 +58,15 @@ from ai_services.auth_utils import (
     create_access_token, decode_token, hash_password, verify_password,
     UserCreate, UserResponse, TokenResponse, require_auth
 )
+from ai_services.usage_manager import (
+    check_and_increment_usage,
+    get_user_usage,
+    reset_usage,
+    update_user_plan,
+    PLAN_LIMITS,
+    PLAN_PRICE_IDS,
+    PLAN_NAMES,
+)
 from ai_services.faceless_video_generator import FacelessVideoGenerator, get_faceless_video_generator
 from ai_services.multi_platform_product_sync import MultiPlatformProductSync, get_product_sync_manager
 from ai_services.youtube_data_api import YouTubeDataAPI, get_youtube_api
@@ -455,6 +464,8 @@ async def signup(user_data: UserCreate):
             "password_hash": hash_password(user_data.password),
             "first_name": user_data.first_name,
             "last_name": user_data.last_name,
+            "plan": "free",
+            "generations_used": 0,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
         }
@@ -515,6 +526,8 @@ async def login(login_data: LoginRequest):
             email=user_doc["email"],
             first_name=user_doc.get("first_name"),
             last_name=user_doc.get("last_name"),
+            plan=user_doc.get("plan", "free"),
+            generations_used=user_doc.get("generations_used", 0),
             created_at=user_doc["created_at"],
             updated_at=user_doc["updated_at"]
         )
@@ -564,6 +577,8 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
             email=user_doc["email"],
             first_name=user_doc.get("first_name"),
             last_name=user_doc.get("last_name"),
+            plan=user_doc.get("plan", "free"),
+            generations_used=user_doc.get("generations_used", 0),
             created_at=user_doc["created_at"],
             updated_at=user_doc["updated_at"]
         )
@@ -883,6 +898,13 @@ class FullProductGenerationResponse(BaseModel):
 
 @api_router.post("/ai/generate-full-product", response_model=FullProductGenerationResponse)
 async def generate_full_product(request: FullProductGenerationRequest, _auth: dict = Depends(require_auth)):
+    """Complete product generation workflow: concept -> description -> image -> save to DB"""
+    # SAAS: Check usage limits before running AI
+    user_id = _auth.get("sub") or _auth.get("user_id")
+    try:
+        await check_and_increment_usage(user_id, db)
+    except HTTPException as usage_err:
+        raise usage_err
     """Complete product generation workflow: concept -> description -> image -> save to DB"""
     try:
         # Step 1: Generate product description
@@ -1370,6 +1392,13 @@ class GenerateBookRequest(BaseModel):
 @api_router.post("/ai/generate-book")
 async def generate_book(request: GenerateBookRequest, _auth: dict = Depends(require_auth)):
     """Generate an eBook using Book Writing AI"""
+    # SAAS: Check usage limits before running AI
+    user_id = _auth.get("sub") or _auth.get("user_id")
+    try:
+        await check_and_increment_usage(user_id, db)
+    except HTTPException as usage_err:
+        raise usage_err
+    """Generate an eBook using Book Writing AI"""
     try:
         # Create task
         task = AITask(
@@ -1436,6 +1465,13 @@ class GenerateCourseRequest(BaseModel):
 
 @api_router.post("/ai/generate-course")
 async def generate_course(request: GenerateCourseRequest, _auth: dict = Depends(require_auth)):
+    """Generate a course using Course Creation AI"""
+    # SAAS: Check usage limits before running AI
+    user_id = _auth.get("sub") or _auth.get("user_id")
+    try:
+        await check_and_increment_usage(user_id, db)
+    except HTTPException as usage_err:
+        raise usage_err
     """Generate a course using Course Creation AI"""
     try:
         # Create task
@@ -2073,6 +2109,18 @@ async def run_autonomous_cycle(_auth: dict = Depends(require_auth)):
     
     Returns complete product with files and marketplace links
     """
+    # SAAS: Check usage limits before running AI
+    user_id = _auth.get("sub") or _auth.get("user_id")
+    try:
+        await check_and_increment_usage(user_id, db)
+    except HTTPException as usage_err:
+        raise usage_err
+    """
+    Run ONE complete autonomous cycle:
+    Scout → Generate REAL product → Compliance → Publish → Market → Track
+    
+    Returns complete product with files and marketplace links
+    """
     try:
         global autonomous_engine
         if not autonomous_engine:
@@ -2224,6 +2272,19 @@ class LaunchProductRequest(BaseModel):
 
 @api_router.post("/launch-product")
 async def launch_product_one_click(request: LaunchProductRequest, _auth: dict = Depends(require_auth)):
+    """
+    ONE-CLICK LAUNCH: Full Autonomous Cycle
+    
+    Scout -> Generate -> Publish to Gumroad -> Create Marketing -> Track Analytics
+    
+    This is the money-making engine that takes AI from idea to revenue.
+    """
+    # SAAS: Check usage limits before running AI
+    user_id = _auth.get("sub") or _auth.get("user_id")
+    try:
+        await check_and_increment_usage(user_id, db)
+    except HTTPException as usage_err:
+        raise usage_err
     """
     ONE-CLICK LAUNCH: Full Autonomous Cycle
     
@@ -3793,7 +3854,138 @@ async def get_teams_summary():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# ============ SAAS BILLING & USAGE LIMITS ============
+
+from fastapi.responses import JSONResponse
+
+class CreateCheckoutRequest(BaseModel):
+    plan: str  # starter, pro, enterprise
+    success_url: str = "http://localhost:3000/billing/success"
+    cancel_url: str = "http://localhost:3000/billing/cancel"
+
+class CreateCheckoutResponse(BaseModel):
+    checkout_url: str
+    session_id: str
+
+@api_router.post("/billing/create-checkout", response_model=CreateCheckoutResponse)
+async def create_subscription_checkout(
+    request: CreateCheckoutRequest,
+    _auth: dict = Depends(require_auth)
+):
+    """Create a Stripe Checkout session for SaaS plan subscription"""
+    try:
+        import stripe as stripe_lib
+        stripe_key = normalize_env_value(keys_manager.get_key('stripe_key'))
+        if not stripe_key:
+            raise HTTPException(status_code=400, detail="Stripe API key not configured")
+        stripe_lib.api_key = stripe_key
+
+        user_id = _auth.get("sub") or _auth.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User not authenticated")
+
+        # Validate plan
+        plan = request.plan.lower()
+        if plan not in PLAN_PRICE_IDS:
+            raise HTTPException(status_code=400, detail=f"Invalid plan: {plan}")
+
+        price_id = PLAN_PRICE_IDS[plan]
+        if not price_id:
+            raise HTTPException(status_code=500, detail=f"Stripe Price ID not configured for plan: {plan}")
+
+        # Create Stripe checkout session
+        checkout_session = stripe_lib.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': price_id,
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=request.success_url + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=request.cancel_url,
+            metadata={
+                'user_id': user_id,
+                'plan': plan,
+                'type': 'saas_subscription'
+            }
+        )
+
+        return CreateCheckoutResponse(
+            checkout_url=checkout_session.url,
+            session_id=checkout_session.id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating checkout: {str(e)}")
+
+
+@api_router.get("/billing/usage")
+async def get_usage(_auth: dict = Depends(require_auth)):
+    """Get current user's usage and plan info"""
+    try:
+        user_id = _auth.get("sub") or _auth.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User not authenticated")
+        usage = await get_user_usage(user_id, db)
+        return usage
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/billing/webhook")
+async def handle_billing_webhook(request: Request):
+    """Handle Stripe webhook for SaaS subscription events (raw body)"""
+    try:
+        import stripe as stripe_lib
+        stripe_key = normalize_env_value(keys_manager.get_key('stripe_key'))
+        if not stripe_key:
+            raise HTTPException(status_code=400, detail="Stripe API key not configured")
+        stripe_lib.api_key = stripe_key
+
+        payload = await request.body()
+        sig_header = request.headers.get('stripe-signature')
+        webhook_secret = normalize_env_value(os.environ.get('STRIPE_WEBHOOK_SECRET_BILLING'))
+
+        if not webhook_secret:
+            raise HTTPException(status_code=500, detail="Stripe webhook secret not configured")
+        if not sig_header:
+            raise HTTPException(status_code=400, detail="Missing Stripe signature header")
+
+        try:
+            event = stripe_lib.Webhook.construct_event(payload, sig_header, webhook_secret)
+        except stripe_lib.error.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+
+        if event['type'] == 'checkout.session.completed':
+            session_data = event['data']['object']
+            metadata = session_data.get('metadata', {})
+            user_id = metadata.get('user_id')
+            plan = metadata.get('plan')
+
+            if not user_id or not plan:
+                return JSONResponse(content={"status": "ignored", "reason": "missing metadata"}, status_code=200)
+
+            # Update user plan and reset usage
+            await update_user_plan(user_id, plan, db)
+            await reset_usage(user_id, db)
+
+            return JSONResponse(content={"status": "success", "user_id": user_id, "plan": plan})
+
+        return JSONResponse(content={"status": "ignored", "event": event['type']}, status_code=200)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook error: {str(e)}")
+
+
 # ============ APP DESCRIPTION ============
+
 
 @api_router.get("/app/description")
 async def get_app_description():
@@ -5920,11 +6112,16 @@ async def startup_services():
     app.state.db = db
     await init_services(db)
     logger.info("✅ Production factory services initialized")
-    # Start automated 2-hour product generation cycle
-    if db is not None:
-        scheduler = get_cycle_scheduler(db)
-        scheduler.start()
-        logger.info("✅ Product cycle scheduler started — generating 10+ products every 2 hours")
+    # Start automated 2-hour product generation cycle (disabled by default to prevent startup crashes)
+    if db is not None and os.environ.get("ENABLE_PRODUCT_CYCLE_SCHEDULER", "false").lower() in ("1", "true", "yes"):
+        try:
+            scheduler = get_cycle_scheduler(db)
+            scheduler.start()
+            logger.info("✅ Product cycle scheduler started — generating 10+ products every 2 hours")
+        except Exception as sched_err:
+            logger.warning(f"⚠️ Product cycle scheduler failed to start: {sched_err}")
+    else:
+        logger.info("ℹ️ Product cycle scheduler disabled (set ENABLE_PRODUCT_CYCLE_SCHEDULER=true to enable)")
     # Start Agent Empire orchestrator
     try:
         orchestrator = get_orchestrator(db)
