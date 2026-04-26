@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API_URL from '../config/api';
@@ -98,6 +99,20 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <div style={{ margin: '16px 0', textAlign: 'center' }}>
+          <span>or</span>
+        </div>
+
+        <button
+          className="auth-button google-auth-button"
+          style={{ background: '#fff', color: '#333', border: '1px solid #ccc', marginBottom: 16 }}
+          onClick={() => {
+            window.location.href = `${API_URL}/api/auth/google/login`;
+          }}
+        >
+          Sign in with Google
+        </button>
 
         <div className="auth-footer">
           <p>Don't have an account? <Link to={signupHref}>Sign Up</Link></p>

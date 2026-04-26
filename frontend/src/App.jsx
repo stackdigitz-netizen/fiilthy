@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
 import SignupPage from './pages/SignupPage';
 import LandingPage from './pages/LandingPage';
 import LegalPage from './pages/LegalPage';
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/store" element={<StorePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/success" element={<SuccessPage />} />
         {AUTHENTICATED_PATHS.map((path) => (

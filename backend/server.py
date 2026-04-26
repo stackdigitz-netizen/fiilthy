@@ -1,4 +1,66 @@
 from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Header, Depends, Request
+from fastapi.responses import RedirectResponse
+from authlib.integrations.starlette_client import OAuth, OAuthError
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+
+# Configure OAuth
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile',
+    },
+)
+# Authentication Routes
+
+# --- Google OAuth2 ---
+@api_router.get("/auth/google/login")
+async def google_login(request: Request):
+    redirect_uri = GOOGLE_REDIRECT_URI
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@api_router.get("/auth/google/callback")
+async def google_callback(request: Request):
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user_info = await oauth.google.parse_id_token(request, token)
+        email = user_info.get("email")
+        first_name = user_info.get("given_name")
+        last_name = user_info.get("family_name")
+        sub = user_info.get("sub")
+
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        users_collection = db['users']
+        user_doc = await users_collection.find_one({"email": email})
+        if not user_doc:
+            # Create new user
+            user_doc = {
+                "id": str(uuid.uuid4()),
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "plan": "free",
+                "generations_used": 0,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+                "google_id": sub
+            }
+            await users_collection.insert_one(user_doc)
+        # Create token
+        jwt_token = create_access_token(user_doc["id"], email)
+        # Redirect to frontend with token (customize as needed)
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(f"{frontend_url}/auth/callback?token={jwt_token}")
+    except OAuthError as e:
+        raise HTTPException(status_code=400, detail=f"Google OAuth error: {e.error}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
