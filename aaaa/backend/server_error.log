@@ -1,0 +1,32 @@
+C:\Users\user\fiilthy\ceo\backend\ai_services\gemini_manager.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+C:\Users\user\fiilthy\ceo\backend\server.py:4096: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+INFO:     Started server process [9412]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+C:\Users\user\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\openapi\utils.py:207: UserWarning: Duplicate Operation ID get_project_api_projects__project_id__get for function get_project at C:\Users\user\fiilthy\ceo\backend\core\routes.py
+  warnings.warn(message, stacklevel=1)
+2026-04-08 16:05:23,351 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-08 16:05:23,351 - openai._base_client - INFO - Retrying request to /chat/completions in 0.420498 seconds
+2026-04-08 16:05:23,840 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-08 16:05:23,858 - openai._base_client - INFO - Retrying request to /chat/completions in 0.903818 seconds
+2026-04-08 16:05:25,263 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-08 16:09:11,133 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-08 16:09:11,140 - openai._base_client - INFO - Retrying request to /chat/completions in 0.390748 seconds
+2026-04-08 16:09:12,054 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-08 16:09:12,062 - openai._base_client - INFO - Retrying request to /chat/completions in 0.978852 seconds
+2026-04-08 16:09:13,118 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"

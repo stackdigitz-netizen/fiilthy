@@ -1,0 +1,136 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ApprovalQueue.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.aq-root {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.aq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.aq-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+.aq-header-stats {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.aq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--sp-4);
+}
+
+.aq-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: box-shadow 200ms;
+}
+.aq-card:hover { box-shadow: var(--shadow-md); }
+
+.aq-card-accent {
+  height: 3px;
+  background: var(--gray-200);
+}
+.aq-card-accent.product  { background: var(--brand); }
+.aq-card-accent.campaign { background: var(--warning); }
+
+.aq-card-body {
+  padding: var(--sp-5);
+}
+
+.aq-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+.aq-card-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--brand-light);
+  color: var(--brand);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.aq-card-time {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.aq-card-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-bottom: var(--sp-2);
+  color: var(--text-primary);
+}
+.aq-card-meta {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-4);
+}
+
+.aq-card-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.aq-btn-approve {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--success);
+  color: var(--white);
+  transition: background 150ms;
+}
+.aq-btn-approve:hover { background: #16a34a; }
+.aq-btn-reject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--white);
+  color: var(--error);
+  border: 1px solid var(--border);
+  transition: all 150ms;
+}
+.aq-btn-reject:hover { background: var(--error-light); border-color: var(--error); }
+
+.aq-empty {
+  text-align: center;
+  padding: var(--sp-12);
+  color: var(--text-secondary);
+}
+.aq-empty h3 { font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--sp-2); color: var(--text-primary); }
+.aq-empty p { font-size: var(--text-sm); }
+
+@media (max-width: 768px) {
+  .aq-grid { grid-template-columns: 1fr; }
+}

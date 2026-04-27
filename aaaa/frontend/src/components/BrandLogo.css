@@ -1,0 +1,52 @@
+/* BrandLogo.css */
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+}
+
+.brand-logo__mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.brand-logo__wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.brand-logo__name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--text-primary);
+}
+
+.brand-logo__name .brand-logo__accent {
+  color: var(--brand);
+}
+
+.brand-logo__tagline {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Light on dark variant */
+.brand-logo--light .brand-logo__name { color: var(--white); }
+.brand-logo--light .brand-logo__tagline { color: rgba(255,255,255,.5); }
+
+/* Size variants */
+.brand-logo--sm .brand-logo__mark { width: 24px; height: 24px; }
+.brand-logo--sm .brand-logo__name { font-size: 13px; }
+.brand-logo--sm .brand-logo__tagline { font-size: 9px; }
+
+.brand-logo--lg .brand-logo__mark { width: 36px; height: 36px; }
+.brand-logo--lg .brand-logo__name { font-size: 20px; }
+.brand-logo--lg .brand-logo__tagline { font-size: 11px; }

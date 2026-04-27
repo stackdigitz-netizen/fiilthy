@@ -1,0 +1,127 @@
+[OK] MongoDB connected to ceo_ai
+[INFO] Starting FastAPI server on http://0.0.0.0:8000
+[INFO] API Docs: http://0.0.0.0:8000/docs
+[INFO] ReDoc: http://0.0.0.0:8000/redoc
+[OK] MongoDB connected to ceo_ai
+INFO:     127.0.0.1:53657 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53666 - "POST /products/generate-with-gemini HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53668 - "GET /gumroad/analytics/summary HTTP/1.1" 404 Not Found
+Warning: TikTok credentials not fully configured
+INFO:     127.0.0.1:53670 - "GET /api/social/tiktok/analytics/channel/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53672 - "GET /etsy/analytics HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53676 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50588 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50588 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57799 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57801 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57803 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57805 - "GET /gumroad/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57807 - "GET /api/social/tiktok/analytics/channel/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57809 - "GET /etsy/analytics HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57811 - "GET /ai/gemini/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57814 - "POST /launch-product HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57816 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57819 - "GET /api/analytics/revenue-breakdown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54698 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54698 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58897 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59116 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58897 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59116 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52917 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52917 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52917 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52917 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50397 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50397 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63956 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50397 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59008 - "OPTIONS /api/ai/generate-full-product HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59008 - "POST /api/ai/generate-full-product HTTP/1.1" 429 Too Many Requests
+INFO:     127.0.0.1:60251 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/automation/schedule HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/marketing/launch-campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/marketing/social-posts?limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/keys/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54593 - "GET /api/automation/schedule HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49232 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60251 - "GET /api/keys/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50634 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59567 - "GET /api/marketing/launch-campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55417 - "GET /api/marketing/social-posts?limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62657 - "GET /api/automation/schedule HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51131 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64001 - "GET /api/marketing/social-posts?limit=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64282 - "GET /api/marketing/launch-campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57108 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54917 - "GET /api/keys/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64439 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52694 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55453 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55453 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62281 - "GET /api/marketing/social-posts?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57944 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57944 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62281 - "GET /api/marketing/social-posts?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63362 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63362 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49931 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49931 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56961 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56963 - "POST /api/generate-product-idea HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56965 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56975 - "POST /api/ai/generate-product HTTP/1.1" 429 Too Many Requests
+INFO:     127.0.0.1:56978 - "POST /api/launch-product HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:56981 - "POST /api/products HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:56274 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56274 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57175 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56274 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64474 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58618 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50689 - "POST /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50692 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50694 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50699 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51989 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59327 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51989 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55486 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59327 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55486 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57366 - "GET /api/marketing/social-posts?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60104 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60104 - "GET /api/marketing/social-posts?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57366 - "GET /api/social/campaigns HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49780 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50315 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57366 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52700 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53034 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53017 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49552 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49552 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50464 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50464 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58135 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58135 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/opportunities?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/analytics/revenue-breakdown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65263 - "GET /api/analytics/revenue-breakdown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65127 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65127 - "GET /api/payments/all-stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/analytics/realtime HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61960 - "GET /api/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61962 - "POST /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61964 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61966 - "GET /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61968 - "GET /api/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61970 - "GET /api/opportunities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61972 - "GET /api/ai/tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61975 - "GET /api/metrics/revenue HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64678 - "POST /api/launch-product HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:64688 - "POST /api/launch-product HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:64695 - "GET /api/keys/status HTTP/1.1" 200 OK
